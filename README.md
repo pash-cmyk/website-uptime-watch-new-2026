@@ -184,3 +184,4 @@ public/style.css             Styling on top of Bootstrap
 
 All endpoints require HTTP Basic Auth if `DASHBOARD_USER`/`DASHBOARD_PASS` are set.
 "# uptimewatch" 
+"# website-uptime-watch-new-2026" 
