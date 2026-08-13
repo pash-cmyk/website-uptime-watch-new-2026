@@ -1,7 +1,7 @@
 {
   "name": "uptime-watch",
   "version": "1.0.0",
-  "description": "Self-hosted website downtime tracker: Bootstrap dashboard with collective + per-site analytics, bulk site add, an adjustable live scheduler, Excel-backed storage, and email alerts.",
+  "description": "Self-hosted website downtime tracker: Bootstrap dashboard with collective + per-site/per-page analytics, bulk add, an adjustable live scheduler, Postgres-backed storage (with on-demand Excel export), and email alerts.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -13,6 +13,7 @@
     "exceljs": "^4.4.0",
     "express": "^4.19.2",
     "node-cron": "^3.0.3",
-    "nodemailer": "^6.9.14"
+    "nodemailer": "^6.9.14",
+    "pg": "^8.23.0"
   }
 }

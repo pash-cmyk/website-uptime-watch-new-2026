@@ -1,11 +1,15 @@
 const params = new URLSearchParams(location.search);
 const siteId = params.get('id');
+const pageId = params.get('page');
 if (!siteId) {
   document.body.innerHTML = '<div class="container py-5"><p>No site specified. <a href="/">Back to dashboard</a></p></div>';
   throw new Error('missing id');
 }
 
 const STATUS_COLORS = { up: '#0ca30c', warning: '#fab219', down: '#d03b3b' };
+
+// Base for header/analytics/check/history calls — page-scoped when ?page= is present.
+const apiBase = pageId ? `/api/sites/${siteId}/pages/${pageId}` : `/api/sites/${siteId}`;
 
 let chart = null;
 
@@ -32,6 +36,26 @@ function currentRange() {
 }
 
 async function loadSiteHeader() {
+  const backLink = document.getElementById('backLink');
+
+  if (pageId) {
+    const data = await fetchJSON(`${apiBase}`);
+    const site = await fetchJSON(`/api/sites/${siteId}`).catch(() => null);
+    const siteName = site ? site.name : '';
+    document.getElementById('siteTitle').textContent = siteName ? `${siteName} / ${data.name}` : data.name;
+    document.title = `${data.name} — Uptime Watch`;
+    const link = document.getElementById('siteUrlLink');
+    link.href = data.url;
+    link.textContent = data.url;
+    const info = statusInfo(data.latest);
+    const badge = document.getElementById('siteStatusBadge');
+    badge.className = 'status-badge badge rounded-pill ' + info.cls;
+    badge.textContent = info.label;
+    backLink.href = `/site.html?id=${siteId}`;
+    document.getElementById('pagesSection').classList.add('d-none');
+    return data;
+  }
+
   const site = await fetchJSON(`/api/sites/${siteId}`);
   document.getElementById('siteTitle').textContent = site.name;
   document.title = `${site.name} — Uptime Watch`;
@@ -42,12 +66,14 @@ async function loadSiteHeader() {
   const badge = document.getElementById('siteStatusBadge');
   badge.className = 'status-badge badge rounded-pill ' + info.cls;
   badge.textContent = info.label;
+  backLink.href = '/';
+  document.getElementById('pagesSection').classList.remove('d-none');
   return site;
 }
 
 async function loadAnalytics() {
   const { from, to } = currentRange();
-  const data = await fetchJSON(`/api/sites/${siteId}/analytics${qs({ from, to })}`);
+  const data = await fetchJSON(`${apiBase}/analytics${qs({ from, to })}`);
   document.getElementById('rangeUptime').textContent = data.uptimePct != null ? `${data.uptimePct}%` : '—';
   document.getElementById('rangeAvgResponse').textContent = data.avgResponseMs != null ? `${data.avgResponseMs}ms` : '—';
   document.getElementById('rangeChecks').textContent = data.totalChecks;
@@ -172,6 +198,152 @@ function renderDailySummary(days) {
   });
 }
 
+// ---------- Pages list (site-root view only) ----------
+
+async function loadPages() {
+  if (pageId) return; // page-detail view has no nested pages list
+  const pages = await fetchJSON(`/api/sites/${siteId}/pages`);
+  renderPages(pages);
+}
+
+function renderPages(pages) {
+  const grid = document.getElementById('pageGrid');
+  const emptyEl = document.getElementById('pagesEmpty');
+  const tpl = document.getElementById('pageCardTemplate');
+  grid.innerHTML = '';
+  emptyEl.classList.toggle('d-none', pages.length > 0);
+
+  pages.forEach((page) => {
+    const info = statusInfo(page.latest);
+    const node = tpl.content.cloneNode(true);
+
+    const link = node.querySelector('.page-card-link');
+    link.href = `/site.html?id=${siteId}&page=${page.id}`;
+
+    node.querySelector('.page-name').textContent = page.name;
+    node.querySelector('.page-url').textContent = page.url.replace(/^https?:\/\//, '');
+
+    const badge = node.querySelector('.status-badge');
+    badge.classList.add(info.cls);
+    badge.textContent = info.label;
+
+    node.querySelector('.detail-line').textContent = detailLine(page.latest);
+
+    const uptimeText = typeof page.uptimePct === 'number' ? ` · ${page.uptimePct}% uptime` : '';
+    node.querySelector('.meta-line').textContent = `Checked ${timeAgo(page.latest && page.latest.ts)}${uptimeText}`;
+
+    node.querySelector('.btn-recheck-page').addEventListener('click', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const btn = e.currentTarget;
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        await fetchJSON(`/api/sites/${siteId}/pages/${page.id}/check`, { method: 'POST' });
+        await loadPages();
+      } catch (err) {
+        alert('Check failed: ' + err.message);
+      } finally {
+        btn.disabled = false; btn.textContent = '↻';
+      }
+    });
+
+    node.querySelector('.btn-remove-page').addEventListener('click', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (!confirm(`Stop tracking "${page.name}"?`)) return;
+      await fetchJSON(`/api/sites/${siteId}/pages/${page.id}`, { method: 'DELETE' });
+      await loadPages();
+    });
+
+    grid.appendChild(node);
+  });
+}
+
+// ---------- Add page modal (single + bulk) ----------
+
+if (!pageId) {
+  const modeTabs = document.getElementById('addPageModeTabs');
+  const singleForm = document.getElementById('singlePageAddForm');
+  const bulkForm = document.getElementById('bulkPageAddForm');
+  const submitLabel = document.getElementById('addPageSubmitLabel');
+  let addPageMode = 'single';
+
+  modeTabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-mode]');
+    if (!btn) return;
+    addPageMode = btn.dataset.mode;
+    modeTabs.querySelectorAll('.nav-link').forEach((b) => b.classList.toggle('active', b === btn));
+    singleForm.classList.toggle('d-none', addPageMode !== 'single');
+    bulkForm.classList.toggle('d-none', addPageMode !== 'bulk');
+    submitLabel.textContent = addPageMode === 'bulk' ? 'Add all & check now' : 'Add & check now';
+  });
+
+  function parseBulkPageInput(text) {
+    return text.split('\n').map((l) => l.trim()).filter(Boolean).map((line) => {
+      const commaIdx = line.indexOf(',');
+      if (commaIdx > -1) {
+        return { name: line.slice(0, commaIdx).trim(), url: line.slice(commaIdx + 1).trim() };
+      }
+      return { url: line };
+    });
+  }
+
+  document.getElementById('addPageSubmitBtn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('addPageError');
+    const summaryEl = document.getElementById('addPageSummary');
+    const spinner = document.getElementById('addPageSpinner');
+    const submitBtn = document.getElementById('addPageSubmitBtn');
+    errorEl.classList.add('d-none');
+    summaryEl.classList.add('d-none');
+
+    let payload, endpoint;
+    if (addPageMode === 'single') {
+      const name = document.getElementById('pageName').value.trim();
+      const url = document.getElementById('pageUrl').value.trim();
+      if (!url) { errorEl.textContent = 'Enter a URL.'; errorEl.classList.remove('d-none'); return; }
+      endpoint = `/api/sites/${siteId}/pages`;
+      payload = { name, url };
+    } else {
+      const entries = parseBulkPageInput(document.getElementById('bulkPages').value);
+      if (!entries.length) { errorEl.textContent = 'Enter at least one URL.'; errorEl.classList.remove('d-none'); return; }
+      endpoint = `/api/sites/${siteId}/pages/bulk`;
+      payload = { entries };
+    }
+
+    spinner.classList.remove('d-none');
+    submitBtn.disabled = true;
+    try {
+      const result = await fetchJSON(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (addPageMode === 'bulk') {
+        let msg = `Added ${result.createdCount} page${result.createdCount === 1 ? '' : 's'}.`;
+        if (result.skippedCount) msg += ` Skipped ${result.skippedCount} already tracked.`;
+        if (result.invalidCount) msg += ` ${result.invalidCount} line(s) had no valid URL.`;
+        summaryEl.textContent = msg;
+        summaryEl.classList.remove('d-none');
+        document.getElementById('bulkPages').value = '';
+      } else {
+        document.getElementById('pageName').value = '';
+        document.getElementById('pageUrl').value = '';
+        bootstrap.Modal.getInstance(document.getElementById('addPageModal')).hide();
+      }
+      await loadPages();
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.classList.remove('d-none');
+    } finally {
+      spinner.classList.add('d-none');
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('addPageModal').addEventListener('hidden.bs.modal', () => {
+    document.getElementById('addPageError').classList.add('d-none');
+    document.getElementById('addPageSummary').classList.add('d-none');
+  });
+}
+
 // ---------- Controls ----------
 
 document.querySelectorAll('input[name="range"]').forEach((el) => {
@@ -189,8 +361,10 @@ document.getElementById('checkNowBtn').addEventListener('click', async () => {
   btn.disabled = true;
   spinner.classList.remove('d-none');
   try {
-    await fetchJSON(`/api/sites/${siteId}/check`, { method: 'POST' });
-    await Promise.all([loadSiteHeader(), loadAnalytics()]);
+    await fetchJSON(`${apiBase}/check`, { method: 'POST' });
+    const tasks = [loadSiteHeader(), loadAnalytics()];
+    if (!pageId) tasks.push(loadPages());
+    await Promise.all(tasks);
   } catch (err) {
     alert('Check failed: ' + err.message);
   } finally {
@@ -202,7 +376,8 @@ document.getElementById('checkNowBtn').addEventListener('click', async () => {
 // ---------- Init ----------
 
 loadSiteHeader().catch((e) => {
-  document.getElementById('siteTitle').textContent = 'Site not found';
+  document.getElementById('siteTitle').textContent = pageId ? 'Page not found' : 'Site not found';
   console.error(e);
 });
 loadAnalytics();
+if (!pageId) loadPages();

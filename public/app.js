@@ -16,6 +16,7 @@ async function loadAnalytics() {
   document.getElementById('statMedianResponse').textContent = a.medianResponseMs != null ? `${a.medianResponseMs}ms` : '—';
   document.getElementById('statAvgUptime').textContent = a.avgUptimePct != null ? `${a.avgUptimePct}%` : '—';
   document.getElementById('statAvgResponse').textContent = a.avgResponseMs != null ? `${a.avgResponseMs}ms` : '—';
+  document.getElementById('statTotalPages').textContent = a.totalPages != null ? a.totalPages : '—';
 }
 
 async function loadStatus() {
