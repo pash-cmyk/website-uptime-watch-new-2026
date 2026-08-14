@@ -366,6 +366,65 @@ if (!pageId) {
     document.getElementById('addPageError').classList.add('d-none');
     document.getElementById('addPageSummary').classList.add('d-none');
   });
+
+  // ---------- Scan for pages (sitemap first, homepage-link crawl fallback) ----------
+
+  document.getElementById('scanPagesBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('scanPagesBtn');
+    const spinner = document.getElementById('scanPagesSpinner');
+    const summaryEl = document.getElementById('scanPagesSummary');
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+    summaryEl.classList.add('d-none');
+    try {
+      const result = await fetchJSON(`/api/sites/${siteId}/scan-pages`, { method: 'POST' });
+      let msg;
+      if (!result.discoveredCount) {
+        msg = "Didn't find any pages — the site may not publish a sitemap, or has no crawlable links on its homepage.";
+      } else {
+        msg = `Scanned and found ${result.discoveredCount} page${result.discoveredCount === 1 ? '' : 's'}. Added ${result.createdCount} new.`;
+        if (result.skippedCount) msg += ` ${result.skippedCount} were already tracked.`;
+      }
+      summaryEl.textContent = msg;
+      summaryEl.classList.remove('d-none');
+      await loadPages();
+    } catch (err) {
+      summaryEl.textContent = 'Scan failed: ' + err.message;
+      summaryEl.classList.remove('d-none');
+    } finally {
+      btn.disabled = false;
+      spinner.classList.add('d-none');
+    }
+  });
+}
+
+// ---------- Prev / next page nav (page-detail view only) ----------
+
+async function setupPageNav() {
+  if (!pageId) return;
+  try {
+    const pages = await fetchJSON(`/api/sites/${siteId}/pages`);
+    const idx = pages.findIndex((p) => p.id === pageId);
+    if (idx === -1 || pages.length <= 1) return;
+
+    document.getElementById('pageNavGroup').classList.remove('d-none');
+    document.getElementById('pageNavLabel').textContent = `${idx + 1} of ${pages.length}`;
+
+    const prevBtn = document.getElementById('prevPageBtn');
+    const nextBtn = document.getElementById('nextPageBtn');
+    if (idx > 0) {
+      prevBtn.addEventListener('click', () => { location.href = `/site.html?id=${siteId}&page=${pages[idx - 1].id}`; });
+    } else {
+      prevBtn.disabled = true;
+    }
+    if (idx < pages.length - 1) {
+      nextBtn.addEventListener('click', () => { location.href = `/site.html?id=${siteId}&page=${pages[idx + 1].id}`; });
+    } else {
+      nextBtn.disabled = true;
+    }
+  } catch (e) {
+    console.error('page nav setup failed', e);
+  }
 }
 
 // ---------- Controls ----------
@@ -413,3 +472,4 @@ loadSiteHeader().catch((e) => {
 });
 loadAnalytics();
 if (!pageId) loadPages();
+setupPageNav();

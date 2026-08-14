@@ -19,6 +19,11 @@
       <a id="siteUrlLink" href="#" target="_blank" rel="noopener" class="small text-muted text-truncate d-block"></a>
     </div>
     <div class="ms-auto d-flex align-items-center gap-2">
+      <div class="d-flex align-items-center gap-1 d-none" id="pageNavGroup">
+        <button id="prevPageBtn" class="btn btn-sm btn-outline-secondary" title="Previous page">‹</button>
+        <span class="small text-muted text-nowrap" id="pageNavLabel"></span>
+        <button id="nextPageBtn" class="btn btn-sm btn-outline-secondary" title="Next page">›</button>
+      </div>
       <span class="status-badge badge rounded-pill" id="siteStatusBadge"></span>
       <button id="checkNowBtn" class="btn btn-sm btn-outline-secondary">
         <span class="spinner-border spinner-border-sm d-none" id="checkNowSpinner"></span>
@@ -45,11 +50,16 @@
           <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterDown" value="down">
           <label class="btn btn-outline-secondary" for="pageFilterDown">Down</label>
         </div>
+        <button id="scanPagesBtn" class="btn btn-sm btn-outline-secondary" title="Scan the site for pages we haven't found yet">
+          <span class="spinner-border spinner-border-sm d-none" id="scanPagesSpinner"></span>
+          ⟳ Scan for pages
+        </button>
         <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addPageModal">+ Add page</button>
       </div>
     </div>
+    <div id="scanPagesSummary" class="alert alert-info-soft py-2 px-3 small mb-3 d-none"></div>
     <div id="pageGrid" class="row g-2"></div>
-    <div id="pagesEmpty" class="text-muted small py-3 d-none">No individual pages tracked yet — add one to monitor a specific page's status separately from the site's root URL.</div>
+    <div id="pagesEmpty" class="text-muted small py-3 d-none">No individual pages tracked yet — add one, or click "Scan for pages" to find them automatically.</div>
     <div id="pagesNoMatch" class="text-muted small py-3 d-none">No pages match this filter.</div>
   </div>
 

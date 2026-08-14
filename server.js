@@ -5,7 +5,7 @@ const express = require('express');
 const cron = require('node-cron');
 
 const store = require('./lib/store');
-const { checkAllSites, checkOneSite, checkOnePage, checkAllForSite } = require('./lib/monitor');
+const { checkAllSites, checkOneSite, checkOnePage, checkAllForSite, discoverAndAddPages } = require('./lib/monitor');
 const { isConfigured: emailConfigured } = require('./lib/mailer');
 
 const app = express();
@@ -137,6 +137,11 @@ app.post('/api/sites', async (req, res) => {
     console.error('[api] initial check failed', e);
   }
   res.status(201).json(await store.getSite(site.id));
+
+  // Scan the new site for pages in the background — doesn't block the
+  // response, since a full scan can take several seconds. Its pages show up
+  // in the site's card/detail view a little after it's added.
+  discoverAndAddPages(site).catch((e) => console.error('[api] page discovery failed for', site.url, e.message));
 });
 
 app.post('/api/sites/bulk', async (req, res) => {
@@ -171,6 +176,12 @@ app.post('/api/sites/bulk', async (req, res) => {
     invalidCount: invalid.length,
     sites: await store.listSites(),
   });
+
+  // Same as the single-add route: scan each newly added site for pages in
+  // the background so the bulk-add response doesn't wait on it.
+  for (const site of created) {
+    discoverAndAddPages(site).catch((e) => console.error('[api] page discovery failed for', site.url, e.message));
+  }
 });
 
 app.delete('/api/sites/:id', async (req, res) => {
@@ -216,6 +227,17 @@ app.post('/api/sites/:id/check-all', async (req, res) => {
     site: await store.getSite(site.id),
     pages: await store.listPages(site.id),
   });
+});
+
+// Re-scans the site for pages (sitemap first, homepage-link crawl as a
+// fallback) and adds any newly found ones — pages already tracked are left
+// untouched (never duplicated or removed). Runs synchronously since it's an
+// explicit user action; a scan can take up to ~20 seconds on a slow site.
+app.post('/api/sites/:id/scan-pages', async (req, res) => {
+  const site = await store.getSite(req.params.id);
+  if (!site) return res.status(404).json({ error: 'site not found' });
+  const result = await discoverAndAddPages(site);
+  res.json({ ...result, pages: await store.listPages(site.id) });
 });
 
 // ---- Pages (URLs nested under a site) ----

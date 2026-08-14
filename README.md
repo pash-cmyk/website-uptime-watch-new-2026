@@ -11,29 +11,40 @@ Postgres database), not just a visual mockup.
 
 ## What it does
 
-- **Homepage**: a collective analytics overview (monitored/up/down counts, median
-  and average uptime %, median and average response time across every site, total
-  pages tracked) above a filterable, searchable grid of site cards.
+- **Homepage**: a collective analytics overview (monitored/up/down counts, average
+  uptime %, average response time across every site, total pages tracked) above a
+  filterable, searchable grid of site cards — each showing how many pages are
+  tracked under it.
 - **Add one site, or many at once** — the "Add website" modal has a bulk mode:
   paste a list of URLs (one per line, optionally `Name, URL`) and they're all
   added and checked immediately.
-- **Click any site card** to open its detail page: analytics for a date range you
-  choose (today / 7 days / 30 days / all time / custom), a response-time chart
-  (points colored by status), a day-by-day summary you can expand to see every
-  individual check — time, status, HTTP code, response time — with its own status
-  filter, and the list of **pages tracked under that site**.
-- **Track individual pages, not just the homepage** — from any site's detail
-  page, click "+ Add page" to monitor a specific URL on that site (e.g. `/pricing`,
-  `/checkout`) separately from the site's root. Each page gets its own status,
-  history, and analytics page (click into it just like a site), and is checked
-  on the same schedule as everything else. Remove a page any time without
-  touching the site it belongs to.
+- **Pages are discovered automatically** — when you add a site, it's scanned in
+  the background (its sitemap first, or the links on its homepage if it doesn't
+  publish one) and up to 25 of its pages are added and start being tracked, with
+  names taken from each page's own `<title>`. No need to add pages one by one.
+  Any site can be re-scanned any time from its detail page ("Scan for pages") to
+  pick up newly added pages — it only ever adds new ones, never touches or
+  duplicates pages you already have.
+- **Click any site card** to open its detail page: combined analytics (the site's
+  root URL plus every page under it) for a date range you choose (today / 7 days /
+  30 days / all time / custom), a response-time chart (points colored by status),
+  and a day-by-day summary you can expand to see every individual check — time,
+  which page it was, status, HTTP code, response time — with its own status
+  filter.
+- **Pages on this site** — a compact, filterable (All/Up/Warning/Down) list of
+  every page tracked under that site, each clickable through to its own detail
+  view. On a page's own detail view, "‹ Prev / Next ›" arrows let you click
+  through every page on that site one after another without going back to the
+  list each time.
 - **Adjustable schedule** — a Settings panel (gear icon) lets you change how often
   everything is checked (5 minutes up to once a day, or a custom cron expression)
   without editing any file or restarting the app; it takes effect immediately.
 - Records the **actual HTTP status code** — 200, 301, 404, 500, timeouts, DNS
   failures, connection refused, etc. — and classifies each as Up / Warning / Down.
 - Sends an email the moment a site or page goes down, and another when it recovers.
+- **"Check now" checks everything under a site** — on a site's own dashboard,
+  it re-checks the root URL and every page under it in one go, and the results
+  show up immediately in that site's combined daily summary.
 - **Download an Excel backup any time** — the Settings panel has a "Download
   backup (.xlsx)" button that exports everything currently in the database
   (sites, pages, checks, settings) as a spreadsheet.
@@ -183,37 +194,54 @@ database.
 ```
 server.js          Express app, REST API, basic auth, and the live scheduler
 lib/checker.js      Does the actual HTTP request and classifies the result
-lib/monitor.js       Runs a check for one/all sites & pages, decides when to alert
-lib/mailer.js         Sends the email alert via SMTP (nodemailer)
-lib/store.js           Postgres-backed data layer (sites, pages, checks, settings, analytics, .xlsx export)
+lib/discover.js       Auto-discovers a site's pages (sitemap, or homepage-link crawl fallback)
+lib/monitor.js          Runs a check for one/all sites & pages, decides when to alert
+lib/mailer.js             Sends the email alert via SMTP (nodemailer)
+lib/store.js                Postgres-backed data layer (sites, pages, checks, settings, analytics, .xlsx export)
 public/index.html    Homepage — collective analytics + filterable site grid
 public/site.html       Site/page detail page — date-range analytics, chart, daily summary, pages list
 public/app.js          Homepage logic (analytics, filters, add/bulk-add, settings)
-public/site.js           Detail page logic (site or page scope, date range, chart, daily summary, page add/remove)
+public/site.js           Detail page logic (site or page scope, date range, chart, daily summary, page add/remove/scan, prev/next nav)
 public/shared.js           Helpers shared by both pages
 public/style.css             Styling on top of Bootstrap
 ```
 
 ## API (for reference / scripting)
 
-- `GET /api/analytics` — collective stats across all sites (median/average uptime %, median/average response time, up/warning/down counts, total pages tracked)
+- `GET /api/analytics` — collective stats across all sites (average uptime %, average response time, up/warning/down counts, total pages tracked)
 - `GET /api/export` — download a fresh `.xlsx` snapshot of everything in the database
-- `GET /api/sites` — list all sites with their latest status + 7-day uptime stats
-- `POST /api/sites` — add a single site `{ name?, url }` (checks it immediately)
-- `POST /api/sites/bulk` — add many sites at once `{ entries: [{ name?, url }, ...] }`
+- `GET /api/sites` — list all sites with their latest status + 7-day uptime stats + `pageCount`
+- `POST /api/sites` — add a single site `{ name?, url }` (checks it immediately, then scans it for pages in the background)
+- `POST /api/sites/bulk` — add many sites at once `{ entries: [{ name?, url }, ...] }` (each is scanned for pages in the background too)
 - `GET /api/sites/:id` — one site's current status
 - `DELETE /api/sites/:id` — remove a site (and its pages and check history)
 - `GET /api/sites/:id/history?from=&to=&limit=` — raw check history for the site's own root URL, optionally date-filtered
-- `GET /api/sites/:id/analytics?from=&to=` — uptime %, avg/median response time, incidents, day-by-day summary, and the chart series for a date range
-- `POST /api/sites/:id/check` — check one site's root URL right now
+- `GET /api/sites/:id/analytics?from=&to=` — combined uptime %/avg response time/incidents/day-by-day summary/chart series for the site's root URL **and every page under it**, for a date range
+- `POST /api/sites/:id/check` — check one site's root URL right now (root only — see `check-all` below to include its pages)
+- `POST /api/sites/:id/check-all` — check the site's root URL AND every page under it right now (what the site dashboard's "Check now" button calls)
+- `POST /api/sites/:id/scan-pages` — re-scan the site for pages and add any newly found ones; pages already tracked are left untouched (never duplicated)
 - `GET /api/sites/:id/pages` — list pages tracked under a site
 - `POST /api/sites/:id/pages` — add a single page `{ name?, url }` under a site (checks it immediately)
 - `POST /api/sites/:id/pages/bulk` — add many pages at once `{ entries: [{ name?, url }, ...] }`
 - `GET /api/sites/:id/pages/:pageId` — one page's current status
 - `DELETE /api/sites/:id/pages/:pageId` — remove a page (and its check history)
-- `GET /api/sites/:id/pages/:pageId/analytics?from=&to=` — same shape as the site analytics endpoint, scoped to that page
+- `GET /api/sites/:id/pages/:pageId/analytics?from=&to=` — that page's own analytics only (not combined with the rest of the site)
 - `POST /api/sites/:id/pages/:pageId/check` — check one page right now
 - `POST /api/check-all` — check every site and page right now (this is what an external scheduler pings)
 - `GET /api/settings` / `PUT /api/settings` — read or change the check schedule (`checkIntervalCron`) and `requestTimeoutMs`; a `PUT` reschedules the live scheduler immediately
 
 All endpoints require HTTP Basic Auth if `DASHBOARD_USER`/`DASHBOARD_PASS` are set.
+
+### A note on automatic page discovery
+
+Adding a site (or clicking "Scan for pages" on one you already have) tries to
+fetch its `sitemap.xml` first — checking `robots.txt` for a `Sitemap:` line as
+well as the usual `/sitemap.xml` and `/sitemap_index.xml` locations — since
+that's the site's own authoritative list of pages. If none is published, it
+falls back to scanning the links on the homepage instead. Either way, the list
+is capped at 25 pages per scan, favoring shallower, more "main navigation"
+looking pages (like `/services` or `/locations/downtown`) over deep or
+blog/archive-style ones (`/blog/post-42`, `/tag/...`) when there are more
+candidates than the cap allows. This is a heuristic, not a guarantee — for a
+site with an unusual structure, or pages you specifically want that didn't
+make the cut, "+ Add page" still lets you add anything by hand.
