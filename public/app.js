@@ -12,8 +12,6 @@ async function loadAnalytics() {
   document.getElementById('statTotal').textContent = a.totalSites;
   document.getElementById('statUp').textContent = a.up;
   document.getElementById('statDown').textContent = a.down + a.warning;
-  document.getElementById('statMedianUptime').textContent = a.medianUptimePct != null ? `${a.medianUptimePct}%` : '—';
-  document.getElementById('statMedianResponse').textContent = a.medianResponseMs != null ? `${a.medianResponseMs}ms` : '—';
   document.getElementById('statAvgUptime').textContent = a.avgUptimePct != null ? `${a.avgUptimePct}%` : '—';
   document.getElementById('statAvgResponse').textContent = a.avgResponseMs != null ? `${a.avgResponseMs}ms` : '—';
   document.getElementById('statTotalPages').textContent = a.totalPages != null ? a.totalPages : '—';
@@ -79,6 +77,12 @@ function render(sites) {
 
     const uptimeText = typeof site.uptimePct === 'number' ? ` · ${site.uptimePct}% uptime` : '';
     node.querySelector('.meta-line').textContent = `Checked ${timeAgo(site.latest && site.latest.ts)}${uptimeText}`;
+
+    const pagesBadge = node.querySelector('.pages-badge');
+    if (site.pageCount) {
+      pagesBadge.textContent = `${site.pageCount} page${site.pageCount === 1 ? '' : 's'}`;
+      pagesBadge.classList.remove('d-none');
+    }
 
     node.querySelector('.btn-recheck').addEventListener('click', async (e) => {
       e.preventDefault(); e.stopPropagation();

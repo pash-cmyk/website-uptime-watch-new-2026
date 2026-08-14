@@ -32,12 +32,25 @@
 
   <!-- Pages on this site (hidden when viewing a specific page) -->
   <div id="pagesSection" class="mb-4 d-none">
-    <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
       <h3 class="section-title mb-0">Pages on this site</h3>
-      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addPageModal">+ Add page</button>
+      <div class="d-flex align-items-center gap-2">
+        <div class="btn-group btn-group-sm" role="group" id="pageStatusFilterGroup">
+          <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterAll" value="all" checked>
+          <label class="btn btn-outline-secondary" for="pageFilterAll">All</label>
+          <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterUp" value="up">
+          <label class="btn btn-outline-secondary" for="pageFilterUp">Up</label>
+          <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterWarning" value="warning">
+          <label class="btn btn-outline-secondary" for="pageFilterWarning">Warning</label>
+          <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterDown" value="down">
+          <label class="btn btn-outline-secondary" for="pageFilterDown">Down</label>
+        </div>
+        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addPageModal">+ Add page</button>
+      </div>
     </div>
-    <div id="pageGrid" class="row g-3"></div>
+    <div id="pageGrid" class="row g-2"></div>
     <div id="pagesEmpty" class="text-muted small py-3 d-none">No individual pages tracked yet — add one to monitor a specific page's status separately from the site's root URL.</div>
+    <div id="pagesNoMatch" class="text-muted small py-3 d-none">No pages match this filter.</div>
   </div>
 
   <!-- Date range filter -->
@@ -173,27 +186,23 @@
   </div>
 </div>
 
-<!-- Page card template -->
+<!-- Page card template (compact row — 3 per row on md+, table-like) -->
 <template id="pageCardTemplate">
-  <div class="col-md-6 col-lg-4 page-col">
+  <div class="col-md-4 page-col">
     <a href="#" class="text-decoration-none page-card-link">
-      <div class="card site-card h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div class="min-w-0">
-              <h6 class="card-title mb-0 text-truncate page-name"></h6>
-              <span class="site-url small text-muted text-truncate d-block page-url"></span>
-            </div>
-            <span class="status-badge badge rounded-pill"></span>
+      <div class="page-row d-flex align-items-start gap-2">
+        <div class="min-w-0 flex-grow-1">
+          <div class="d-flex align-items-center gap-2">
+            <h6 class="card-title mb-0 text-truncate page-name"></h6>
+            <span class="status-badge badge rounded-pill ms-auto flex-shrink-0"></span>
           </div>
-          <div class="detail-line small text-muted mt-2"></div>
-          <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
-            <span class="small text-muted meta-line"></span>
-            <div class="d-flex gap-2">
-              <button class="btn btn-sm btn-outline-secondary btn-recheck-page" title="Check now">↻</button>
-              <button class="btn btn-sm btn-outline-danger btn-remove-page" title="Remove">✕</button>
-            </div>
-          </div>
+          <span class="site-url small text-muted text-truncate d-block page-url"></span>
+          <div class="detail-line small text-muted text-truncate"></div>
+          <div class="small text-muted meta-line text-truncate"></div>
+        </div>
+        <div class="d-flex flex-column gap-1 flex-shrink-0">
+          <button class="btn btn-sm btn-outline-secondary btn-recheck-page" title="Check now">↻</button>
+          <button class="btn btn-sm btn-outline-danger btn-remove-page" title="Remove">✕</button>
         </div>
       </div>
     </a>
@@ -216,6 +225,7 @@
             <thead>
               <tr class="small text-muted">
                 <th>Time</th>
+                <th class="source-col">Page</th>
                 <th>Status</th>
                 <th>HTTP</th>
                 <th>Response</th>

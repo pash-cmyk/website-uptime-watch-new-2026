@@ -11,7 +11,14 @@ const STATUS_COLORS = { up: '#0ca30c', warning: '#fab219', down: '#d03b3b' };
 // Base for header/analytics/check/history calls — page-scoped when ?page= is present.
 const apiBase = pageId ? `/api/sites/${siteId}/pages/${pageId}` : `/api/sites/${siteId}`;
 
+// A single page's own detail view only ever shows its own data — no nested
+// pages list, no combined analytics. The CSS uses this to hide the "Page"
+// (source) column in the daily log, which only makes sense when checks from
+// more than one target (root + pages) are mixed together.
+if (pageId) document.body.classList.add('page-detail-view');
+
 let chart = null;
+let allPages = [];
 
 function currentRange() {
   const selected = document.querySelector('input[name="range"]:checked').value;
@@ -169,7 +176,7 @@ function renderDailySummary(days) {
     const checks = logFilter === 'all' ? day.checks : day.checks.filter((c) => c.category === logFilter);
     if (!checks.length) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="5" class="text-muted small">No checks match the current filter.</td>';
+      tr.innerHTML = '<td colspan="6" class="text-muted small">No checks match the current filter.</td>';
       tbody.appendChild(tr);
     } else {
       checks.slice().reverse().forEach((c) => {
@@ -177,6 +184,9 @@ function renderDailySummary(days) {
         const info = statusInfo(c);
         const tdTime = document.createElement('td');
         tdTime.textContent = formatClock(c.ts);
+        const tdSource = document.createElement('td');
+        tdSource.className = 'source-col small text-muted';
+        tdSource.textContent = c.targetName || '';
         const tdStatus = document.createElement('td');
         const span = document.createElement('span');
         span.className = 'status-badge badge rounded-pill ' + info.cls;
@@ -189,7 +199,7 @@ function renderDailySummary(days) {
         const tdDetail = document.createElement('td');
         tdDetail.className = 'small text-muted';
         tdDetail.textContent = c.error || '';
-        tr.append(tdTime, tdStatus, tdHttp, tdResp, tdDetail);
+        tr.append(tdTime, tdSource, tdStatus, tdHttp, tdResp, tdDetail);
         tbody.appendChild(tr);
       });
     }
@@ -202,8 +212,22 @@ function renderDailySummary(days) {
 
 async function loadPages() {
   if (pageId) return; // page-detail view has no nested pages list
-  const pages = await fetchJSON(`/api/sites/${siteId}/pages`);
-  renderPages(pages);
+  allPages = await fetchJSON(`/api/sites/${siteId}/pages`);
+  renderPagesFiltered();
+}
+
+function currentPageFilter() {
+  const el = document.querySelector('input[name="pageStatusFilter"]:checked');
+  return el ? el.value : 'all';
+}
+
+function renderPagesFiltered() {
+  const filter = currentPageFilter();
+  const filtered = filter === 'all'
+    ? allPages
+    : allPages.filter((p) => (p.latest ? p.latest.category : 'unknown') === filter);
+  renderPages(filtered);
+  document.getElementById('pagesNoMatch').classList.toggle('d-none', !(allPages.length > 0 && filtered.length === 0));
 }
 
 function renderPages(pages) {
@@ -211,7 +235,7 @@ function renderPages(pages) {
   const emptyEl = document.getElementById('pagesEmpty');
   const tpl = document.getElementById('pageCardTemplate');
   grid.innerHTML = '';
-  emptyEl.classList.toggle('d-none', pages.length > 0);
+  emptyEl.classList.toggle('d-none', allPages.length > 0);
 
   pages.forEach((page) => {
     const info = statusInfo(page.latest);
@@ -355,13 +379,21 @@ document.querySelectorAll('input[name="range"]').forEach((el) => {
 document.getElementById('applyCustomRange').addEventListener('click', loadAnalytics);
 document.querySelectorAll('input[name="logStatusFilter"]').forEach((el) => el.addEventListener('change', loadAnalytics));
 
+if (!pageId) {
+  document.querySelectorAll('input[name="pageStatusFilter"]').forEach((el) => el.addEventListener('change', renderPagesFiltered));
+}
+
 document.getElementById('checkNowBtn').addEventListener('click', async () => {
   const btn = document.getElementById('checkNowBtn');
   const spinner = document.getElementById('checkNowSpinner');
   btn.disabled = true;
   spinner.classList.remove('d-none');
   try {
-    await fetchJSON(`${apiBase}/check`, { method: 'POST' });
+    // On a site's own dashboard, "Check now" checks the root URL AND every
+    // page tracked under it, so the combined analytics/daily summary reflect
+    // everything right away. A single page's own view only checks itself.
+    const checkEndpoint = pageId ? `${apiBase}/check` : `/api/sites/${siteId}/check-all`;
+    await fetchJSON(checkEndpoint, { method: 'POST' });
     const tasks = [loadSiteHeader(), loadAnalytics()];
     if (!pageId) tasks.push(loadPages());
     await Promise.all(tasks);

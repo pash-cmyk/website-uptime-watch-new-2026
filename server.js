@@ -5,7 +5,7 @@ const express = require('express');
 const cron = require('node-cron');
 
 const store = require('./lib/store');
-const { checkAllSites, checkOneSite, checkOnePage } = require('./lib/monitor');
+const { checkAllSites, checkOneSite, checkOnePage, checkAllForSite } = require('./lib/monitor');
 const { isConfigured: emailConfigured } = require('./lib/mailer');
 
 const app = express();
@@ -186,11 +186,15 @@ app.get('/api/sites/:id/history', async (req, res) => {
   res.json(await store.getHistory(req.params.id, { from, to, limit: limit ? Number(limit) : undefined }));
 });
 
+// Combined analytics for the site-detail dashboard: the site's root URL PLUS
+// every page tracked under it, so the range stats / chart / daily summary
+// reflect the whole site. (A single page's own detail view uses the
+// page-scoped analytics endpoint further down instead.)
 app.get('/api/sites/:id/analytics', async (req, res) => {
   const site = await store.getSite(req.params.id);
   if (!site) return res.status(404).json({ error: 'site not found' });
   const { from, to } = req.query;
-  const analytics = await store.getSiteAnalytics(req.params.id, { from, to });
+  const analytics = await store.getSiteCombinedAnalytics(req.params.id, { from, to });
   res.json({ site, ...analytics });
 });
 
@@ -199,6 +203,19 @@ app.post('/api/sites/:id/check', async (req, res) => {
   if (!site) return res.status(404).json({ error: 'site not found' });
   const result = await checkOneSite(site);
   res.json({ site: await store.getSite(site.id), result });
+});
+
+// Check the site's root URL AND every page under it in one go — this is what
+// the site-detail dashboard's "Check now" button calls.
+app.post('/api/sites/:id/check-all', async (req, res) => {
+  const site = await store.getSite(req.params.id);
+  if (!site) return res.status(404).json({ error: 'site not found' });
+  const results = await checkAllForSite(site);
+  res.json({
+    checked: results.length,
+    site: await store.getSite(site.id),
+    pages: await store.listPages(site.id),
+  });
 });
 
 // ---- Pages (URLs nested under a site) ----

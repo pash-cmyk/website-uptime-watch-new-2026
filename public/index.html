@@ -63,39 +63,25 @@
     </div>
     <div class="col-6 col-md-3">
       <div class="stat-card">
-        <div class="stat-label">Median uptime (7d)</div>
-        <div class="stat-value" id="statMedianUptime">—</div>
+        <div class="stat-label">Average uptime (7d)</div>
+        <div class="stat-value" id="statAvgUptime">—</div>
       </div>
     </div>
   </div>
   <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-      <div class="stat-card stat-card-sub">
-        <div class="stat-label">Median response (7d)</div>
-        <div class="stat-value-sm" id="statMedianResponse">—</div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="stat-card stat-card-sub">
-        <div class="stat-label">Average uptime (7d)</div>
-        <div class="stat-value-sm" id="statAvgUptime">—</div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4">
       <div class="stat-card stat-card-sub">
         <div class="stat-label">Average response (7d)</div>
         <div class="stat-value-sm" id="statAvgResponse">—</div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4">
       <div class="stat-card stat-card-sub">
         <div class="stat-label">Checking every</div>
         <div class="stat-value-sm" id="statInterval">—</div>
       </div>
     </div>
-  </div>
-  <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4">
       <div class="stat-card stat-card-sub">
         <div class="stat-label">Pages tracked</div>
         <div class="stat-value-sm" id="statTotalPages">—</div>
@@ -239,12 +225,15 @@
               <h6 class="card-title mb-0 text-truncate site-name"></h6>
               <span class="site-url small text-muted text-truncate d-block"></span>
             </div>
-            <span class="status-badge badge rounded-pill"></span>
+            <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
+              <span class="status-badge badge rounded-pill"></span>
+              <span class="badge rounded-pill text-bg-light border pages-badge d-none"></span>
+            </div>
           </div>
           <div class="detail-line small text-muted mt-2"></div>
           <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
-            <span class="small text-muted meta-line"></span>
-            <div class="d-flex gap-2">
+            <span class="small text-muted meta-line text-truncate"></span>
+            <div class="d-flex gap-2 flex-shrink-0">
               <button class="btn btn-sm btn-outline-secondary btn-recheck" title="Check now">↻</button>
               <button class="btn btn-sm btn-outline-danger btn-remove" title="Remove">✕</button>
             </div>
