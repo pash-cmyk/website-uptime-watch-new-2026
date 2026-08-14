@@ -35,34 +35,6 @@
 
 <div class="container-xl py-4">
 
-  <!-- Pages on this site (hidden when viewing a specific page) -->
-  <div id="pagesSection" class="mb-4 d-none">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-      <h3 class="section-title mb-0">Pages on this site</h3>
-      <div class="d-flex align-items-center gap-2">
-        <div class="btn-group btn-group-sm" role="group" id="pageStatusFilterGroup">
-          <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterAll" value="all" checked>
-          <label class="btn btn-outline-secondary" for="pageFilterAll">All</label>
-          <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterUp" value="up">
-          <label class="btn btn-outline-secondary" for="pageFilterUp">Up</label>
-          <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterWarning" value="warning">
-          <label class="btn btn-outline-secondary" for="pageFilterWarning">Warning</label>
-          <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterDown" value="down">
-          <label class="btn btn-outline-secondary" for="pageFilterDown">Down</label>
-        </div>
-        <button id="scanPagesBtn" class="btn btn-sm btn-outline-secondary" title="Scan the site for pages we haven't found yet">
-          <span class="spinner-border spinner-border-sm d-none" id="scanPagesSpinner"></span>
-          ⟳ Scan for pages
-        </button>
-        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addPageModal">+ Add page</button>
-      </div>
-    </div>
-    <div id="scanPagesSummary" class="alert alert-info-soft py-2 px-3 small mb-3 d-none"></div>
-    <div id="pageGrid" class="row g-2"></div>
-    <div id="pagesEmpty" class="text-muted small py-3 d-none">No individual pages tracked yet — add one, or click "Scan for pages" to find them automatically.</div>
-    <div id="pagesNoMatch" class="text-muted small py-3 d-none">No pages match this filter.</div>
-  </div>
-
   <!-- Date range filter -->
   <div class="d-flex flex-wrap gap-2 align-items-center mb-3 filter-row">
     <div class="btn-group btn-group-sm" role="group" id="rangeGroup">
@@ -146,6 +118,54 @@
   <div id="dailySummaryList" class="vstack gap-2 mb-4"></div>
   <div id="dailyEmpty" class="text-center text-muted py-4 d-none">No checks recorded in this range yet.</div>
 
+  <!-- Pages on this site (hidden entirely when viewing a specific page) — collapsible, like a daily-summary day card -->
+  <div id="pagesSection" class="card day-card mb-4 d-none">
+    <button class="day-header btn text-start w-100 d-flex align-items-center gap-3" type="button" data-bs-toggle="collapse" data-bs-target="#pagesCollapseBody" aria-expanded="true" aria-controls="pagesCollapseBody">
+      <span class="fw-semibold">Pages on this site</span>
+      <span class="small text-muted ms-auto" id="pagesHeaderMeta"></span>
+      <span class="chevron">⌄</span>
+    </button>
+    <div class="collapse show" id="pagesCollapseBody">
+      <div class="card-body pt-0">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+          <div class="btn-group btn-group-sm" role="group" id="pageStatusFilterGroup">
+            <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterAll" value="all" checked>
+            <label class="btn btn-outline-secondary" for="pageFilterAll">All</label>
+            <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterUp" value="up">
+            <label class="btn btn-outline-secondary" for="pageFilterUp">Up</label>
+            <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterWarning" value="warning">
+            <label class="btn btn-outline-secondary" for="pageFilterWarning">Warning</label>
+            <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterDown" value="down">
+            <label class="btn btn-outline-secondary" for="pageFilterDown">Down</label>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <button id="scanPagesBtn" class="btn btn-sm btn-outline-secondary" title="Scan the site for pages we haven't found yet">
+              <span class="spinner-border spinner-border-sm d-none" id="scanPagesSpinner"></span>
+              ⟳ Scan for pages
+            </button>
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addPageModal">+ Add page</button>
+          </div>
+        </div>
+        <div id="scanPagesSummary" class="alert alert-info-soft py-2 px-3 small mb-3 d-none"></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 page-list-table">
+            <thead>
+              <tr class="small text-muted">
+                <th>Page</th>
+                <th>Status</th>
+                <th>Last checked</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="pageGrid"></tbody>
+          </table>
+        </div>
+        <div id="pagesEmpty" class="text-muted small py-3 d-none">No individual pages tracked yet — add one, or click "Scan for pages" to find them automatically.</div>
+        <div id="pagesNoMatch" class="text-muted small py-3 d-none">No pages match this filter.</div>
+      </div>
+    </div>
+  </div>
+
   <footer class="text-center text-muted small mt-5 pt-3 border-top">
     Uptime Watch · self-hosted · Pash G, All Practice Solutions
   </footer>
@@ -196,27 +216,23 @@
   </div>
 </div>
 
-<!-- Page card template (compact row — 3 per row on md+, table-like) -->
+<!-- Page row template (list/table style — one page per row) -->
 <template id="pageCardTemplate">
-  <div class="col-md-4 page-col">
-    <a href="#" class="text-decoration-none page-card-link">
-      <div class="page-row d-flex align-items-start gap-2">
-        <div class="min-w-0 flex-grow-1">
-          <div class="d-flex align-items-center gap-2">
-            <h6 class="card-title mb-0 text-truncate page-name"></h6>
-            <span class="status-badge badge rounded-pill ms-auto flex-shrink-0"></span>
-          </div>
-          <span class="site-url small text-muted text-truncate d-block page-url"></span>
-          <div class="detail-line small text-muted text-truncate"></div>
-          <div class="small text-muted meta-line text-truncate"></div>
-        </div>
-        <div class="d-flex flex-column gap-1 flex-shrink-0">
-          <button class="btn btn-sm btn-outline-secondary btn-recheck-page" title="Check now">↻</button>
-          <button class="btn btn-sm btn-outline-danger btn-remove-page" title="Remove">✕</button>
-        </div>
-      </div>
-    </a>
-  </div>
+  <tr class="page-list-row">
+    <td class="min-w-0">
+      <div class="fw-semibold text-truncate page-name"></div>
+      <div class="small text-muted text-truncate page-url"></div>
+    </td>
+    <td>
+      <span class="status-badge badge rounded-pill"></span>
+      <div class="small text-muted text-truncate detail-line"></div>
+    </td>
+    <td class="small text-muted text-nowrap meta-line"></td>
+    <td class="text-end text-nowrap">
+      <button class="btn btn-sm btn-outline-secondary btn-recheck-page" title="Check now">↻</button>
+      <button class="btn btn-sm btn-outline-danger btn-remove-page" title="Remove">✕</button>
+    </td>
+  </tr>
 </template>
 
 <!-- Day summary template -->

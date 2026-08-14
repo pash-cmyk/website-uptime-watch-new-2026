@@ -15,6 +15,14 @@ Postgres database), not just a visual mockup.
   uptime %, average response time across every site, total pages tracked) above a
   filterable, searchable grid of site cards — each showing how many pages are
   tracked under it.
+- **A site's status is never just its homepage's status.** Every site card (and
+  the site's own detail page) shows one combined status computed across the root
+  URL **and every page tracked under it**: all of them up → **Up**; all of them
+  down → **Down**; anything in between (say, the homepage is fine but one inner
+  page is erroring) → **Warning**. The card's detail line spells out the actual
+  breakdown — e.g. "9 up · 1 down" — instead of hiding it behind a single badge,
+  and the homepage's overview counts (Up now / Down or issue) are built from this
+  same combined status, not from root-URL checks alone.
 - **Add one site, or many at once** — the "Add website" modal has a bulk mode:
   paste a list of URLs (one per line, optionally `Name, URL`) and they're all
   added and checked immediately.
@@ -25,17 +33,18 @@ Postgres database), not just a visual mockup.
   Any site can be re-scanned any time from its detail page ("Scan for pages") to
   pick up newly added pages — it only ever adds new ones, never touches or
   duplicates pages you already have.
-- **Click any site card** to open its detail page: combined analytics (the site's
-  root URL plus every page under it) for a date range you choose (today / 7 days /
-  30 days / all time / custom), a response-time chart (points colored by status),
-  and a day-by-day summary you can expand to see every individual check — time,
-  which page it was, status, HTTP code, response time — with its own status
-  filter.
-- **Pages on this site** — a compact, filterable (All/Up/Warning/Down) list of
-  every page tracked under that site, each clickable through to its own detail
-  view. On a page's own detail view, "‹ Prev / Next ›" arrows let you click
-  through every page on that site one after another without going back to the
-  list each time.
+- **Click any site card** to open its detail page. The page leads with
+  analytics: combined stats (the site's root URL plus every page under it) for a
+  date range you choose (today / 7 days / 30 days / all time / custom), a
+  response-time chart (points colored by status), and a day-by-day summary you
+  can expand to see every individual check — time, which page it was, status,
+  HTTP code, response time — with its own status filter. **Pages on this site**
+  follows underneath as its own collapsible section (click the header to
+  open/close it, same as the daily summary's day-cards) — a filterable
+  (All/Up/Warning/Down) list-style table of every page tracked under that site,
+  each row clickable through to its own detail view. On a page's own detail
+  view, "‹ Prev / Next ›" arrows let you click through every page on that site
+  one after another without going back to the list each time.
 - **Adjustable schedule** — a Settings panel (gear icon) lets you change how often
   everything is checked (5 minutes up to once a day, or a custom cron expression)
   without editing any file or restarting the app; it takes effect immediately.
@@ -210,7 +219,7 @@ public/style.css             Styling on top of Bootstrap
 
 - `GET /api/analytics` — collective stats across all sites (average uptime %, average response time, up/warning/down counts, total pages tracked)
 - `GET /api/export` — download a fresh `.xlsx` snapshot of everything in the database
-- `GET /api/sites` — list all sites with their latest status + 7-day uptime stats + `pageCount`
+- `GET /api/sites` — list all sites with their latest status + 7-day uptime stats + `pageCount`, plus the combined-status fields `aggregateStatus` (`up`/`warning`/`down`/`unknown`) and `targetsUp`/`targetsWarning`/`targetsDown`/`targetsTotal` — the breakdown across the root URL and every page under it (see "A note on site-wide status" below)
 - `POST /api/sites` — add a single site `{ name?, url }` (checks it immediately, then scans it for pages in the background)
 - `POST /api/sites/bulk` — add many sites at once `{ entries: [{ name?, url }, ...] }` (each is scanned for pages in the background too)
 - `GET /api/sites/:id` — one site's current status
@@ -231,6 +240,19 @@ public/style.css             Styling on top of Bootstrap
 - `GET /api/settings` / `PUT /api/settings` — read or change the check schedule (`checkIntervalCron`) and `requestTimeoutMs`; a `PUT` reschedules the live scheduler immediately
 
 All endpoints require HTTP Basic Auth if `DASHBOARD_USER`/`DASHBOARD_PASS` are set.
+
+### A note on site-wide status
+
+A site's Up/Warning/Down badge is computed from **every target under it** — the
+root URL plus each tracked page — not from the root URL alone. Concretely: if
+every target's latest check is up, the site shows **Up**; if every target's
+latest check is down (nothing up at all), it shows **Down**; any mix — even
+just one page erroring while everything else, including the homepage, is
+fine — shows **Warning**. This is intentional: a site with a healthy homepage
+but a broken contact page is a real partial problem, and the old approach
+(root-URL-only) would have hidden it behind a green "Up" badge. This same rule
+drives the homepage's site cards, its filter buttons, its overview counts (Up
+now / Down or issue), and the badge at the top of the site's own detail page.
 
 ### A note on automatic page discovery
 

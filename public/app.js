@@ -43,7 +43,7 @@ function renderFiltered() {
   const { status, search } = currentFilters();
   let filtered = allSites;
   if (status !== 'all') {
-    filtered = filtered.filter((s) => (s.latest ? s.latest.category : 'unknown') === status);
+    filtered = filtered.filter((s) => s.aggregateStatus === status);
   }
   if (search) {
     filtered = filtered.filter((s) => s.name.toLowerCase().includes(search) || s.url.toLowerCase().includes(search));
@@ -60,7 +60,7 @@ function render(sites) {
   noMatchState.classList.toggle('d-none', !(allSites.length > 0 && sites.length === 0));
 
   sites.forEach((site) => {
-    const info = statusInfo(site.latest);
+    const info = aggregateStatusInfo(site);
     const node = template.content.cloneNode(true);
 
     const link = node.querySelector('.site-card-link');
@@ -73,7 +73,7 @@ function render(sites) {
     badge.classList.add(info.cls);
     badge.textContent = info.label;
 
-    node.querySelector('.detail-line').textContent = detailLine(site.latest);
+    node.querySelector('.detail-line').textContent = targetBreakdownLine(site);
 
     const uptimeText = typeof site.uptimePct === 'number' ? ` · ${site.uptimePct}% uptime` : '';
     node.querySelector('.meta-line').textContent = `Checked ${timeAgo(site.latest && site.latest.ts)}${uptimeText}`;

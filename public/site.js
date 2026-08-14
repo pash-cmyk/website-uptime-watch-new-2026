@@ -69,7 +69,9 @@ async function loadSiteHeader() {
   const link = document.getElementById('siteUrlLink');
   link.href = site.url;
   link.textContent = site.url;
-  const info = statusInfo(site.latest);
+  // The header badge reflects the whole site (root + pages), same rule as
+  // the homepage card — not just the root URL's own status.
+  const info = aggregateStatusInfo(site);
   const badge = document.getElementById('siteStatusBadge');
   badge.className = 'status-badge badge rounded-pill ' + info.cls;
   badge.textContent = info.label;
@@ -213,12 +215,27 @@ function renderDailySummary(days) {
 async function loadPages() {
   if (pageId) return; // page-detail view has no nested pages list
   allPages = await fetchJSON(`/api/sites/${siteId}/pages`);
+  updatePagesHeaderMeta();
   renderPagesFiltered();
 }
 
 function currentPageFilter() {
   const el = document.querySelector('input[name="pageStatusFilter"]:checked');
   return el ? el.value : 'all';
+}
+
+function updatePagesHeaderMeta() {
+  const el = document.getElementById('pagesHeaderMeta');
+  if (!el) return;
+  if (!allPages.length) { el.textContent = 'No pages yet'; return; }
+  const down = allPages.filter((p) => p.latest && p.latest.category === 'down').length;
+  const warning = allPages.filter((p) => p.latest && p.latest.category === 'warning').length;
+  let text = `${allPages.length} page${allPages.length === 1 ? '' : 's'}`;
+  const issues = [];
+  if (down) issues.push(`${down} down`);
+  if (warning) issues.push(`${warning} warning`);
+  if (issues.length) text += ` · ${issues.join(', ')}`;
+  el.textContent = text;
 }
 
 function renderPagesFiltered() {
@@ -241,8 +258,8 @@ function renderPages(pages) {
     const info = statusInfo(page.latest);
     const node = tpl.content.cloneNode(true);
 
-    const link = node.querySelector('.page-card-link');
-    link.href = `/site.html?id=${siteId}&page=${page.id}`;
+    const row = node.querySelector('.page-list-row');
+    row.addEventListener('click', () => { location.href = `/site.html?id=${siteId}&page=${page.id}`; });
 
     node.querySelector('.page-name').textContent = page.name;
     node.querySelector('.page-url').textContent = page.url.replace(/^https?:\/\//, '');
@@ -251,13 +268,13 @@ function renderPages(pages) {
     badge.classList.add(info.cls);
     badge.textContent = info.label;
 
-    node.querySelector('.detail-line').textContent = detailLine(page.latest);
-
     const uptimeText = typeof page.uptimePct === 'number' ? ` · ${page.uptimePct}% uptime` : '';
-    node.querySelector('.meta-line').textContent = `Checked ${timeAgo(page.latest && page.latest.ts)}${uptimeText}`;
+    node.querySelector('.detail-line').textContent = `${detailLine(page.latest)}${uptimeText}`;
+
+    node.querySelector('.meta-line').textContent = timeAgo(page.latest && page.latest.ts);
 
     node.querySelector('.btn-recheck-page').addEventListener('click', async (e) => {
-      e.preventDefault(); e.stopPropagation();
+      e.stopPropagation();
       const btn = e.currentTarget;
       btn.disabled = true; btn.textContent = '…';
       try {
@@ -271,7 +288,7 @@ function renderPages(pages) {
     });
 
     node.querySelector('.btn-remove-page').addEventListener('click', async (e) => {
-      e.preventDefault(); e.stopPropagation();
+      e.stopPropagation();
       if (!confirm(`Stop tracking "${page.name}"?`)) return;
       await fetchJSON(`/api/sites/${siteId}/pages/${page.id}`, { method: 'DELETE' });
       await loadPages();

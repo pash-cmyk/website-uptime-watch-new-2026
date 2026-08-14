@@ -55,6 +55,32 @@ function detailLine(latest) {
   return `HTTP ${latest.httpStatus} — server error`;
 }
 
+// A site's status badge is never just its root URL's status — it's the root
+// URL AND every page tracked under it, considered together (see
+// aggregateStatus() in lib/store.js for the exact rule: all up -> up, all
+// down/warning -> down, anything mixed -> warning).
+function aggregateStatusInfo(site) {
+  if (!site.targetsTotal) return { cls: 'status-unknown', label: 'Checking…' };
+  if (site.aggregateStatus === 'up') return { cls: 'status-up', label: 'Up' };
+  if (site.aggregateStatus === 'down') return { cls: 'status-down', label: 'Down' };
+  return { cls: 'status-warning', label: 'Warning' };
+}
+
+// The line under a site's name on its card: a breakdown of how many of its
+// targets (root + pages) are up/warning/down, so "9 up, 1 down" is visible
+// at a glance instead of hiding behind a single Up/Down badge. Sites with no
+// pages just show the root's own detail, since a "1 up" breakdown of one
+// target adds nothing.
+function targetBreakdownLine(site) {
+  if (!site.targetsTotal) return 'Not checked yet';
+  if (!site.pageCount) return detailLine(site.latest);
+  const parts = [];
+  if (site.targetsUp) parts.push(`${site.targetsUp} up`);
+  if (site.targetsWarning) parts.push(`${site.targetsWarning} warning`);
+  if (site.targetsDown) parts.push(`${site.targetsDown} down`);
+  return parts.join(' · ') || 'Not checked yet';
+}
+
 const CRON_PRESET_LABELS = {
   '*/5 * * * *': 'every 5 minutes',
   '*/15 * * * *': 'every 15 minutes',

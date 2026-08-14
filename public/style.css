@@ -145,22 +145,14 @@ body {
 
 .min-w-0 { min-width: 0; }
 
-/* ---- Compact page rows ("Pages on this site" — table-list style) ---- */
-.page-row {
-  border: 1px solid #e6e5e0;
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: #fff;
-  transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
-}
-.page-row:hover {
-  box-shadow: 0 8px 18px -10px rgba(11,11,11,0.16);
-  transform: translateY(-1px);
-  border-color: #d7d5cd;
-}
-.page-row .card-title { font-size: 0.9rem; }
-.page-row .status-badge { padding: 3px 8px; font-size: 11px; }
-.page-row .btn { padding: 0.15rem 0.4rem; font-size: 0.75rem; line-height: 1.4; }
+/* ---- Pages on this site — list/table style ---- */
+.page-list-table thead th { border-bottom: 1px solid var(--hairline); font-weight: 600; color: var(--ink-secondary); }
+.page-list-row { cursor: pointer; }
+.page-list-row .status-badge { padding: 3px 8px; font-size: 11px; }
+.page-list-row .btn { padding: 0.15rem 0.4rem; font-size: 0.75rem; line-height: 1.4; }
+.page-list-row td { vertical-align: middle; }
+.page-list-row .page-name { max-width: 320px; }
+.page-list-row .page-url { max-width: 320px; }
 
 /* Pages tracked badge on homepage site cards */
 .pages-badge { font-size: 11px; font-weight: 600; color: var(--ink-secondary); }
