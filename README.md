@@ -136,15 +136,26 @@ connects, so there's nothing else to set up on Neon's side.
    |---|---|
    | `DATABASE_URL` | *(the connection string you copied from Neon in Part 0)* |
    | `CHECK_INTERVAL_CRON` | `0 * * * *` |
-   | `SMTP_HOST` | `smtp.gmail.com` |
-   | `SMTP_PORT` | `587` |
-   | `SMTP_SECURE` | `false` |
-   | `SMTP_USER` | `pash@allpracticesolutions.com` |
-   | `SMTP_PASS` | *(the app password from Part 3 below)* |
-   | `ALERT_FROM_EMAIL` | `pash@allpracticesolutions.com` |
+   | `BREVO_API_KEY` | *(your Brevo API key — see the important note below)* |
+   | `ALERT_FROM_EMAIL` | *(the sender email you verified in Brevo)* |
    | `ALERT_TO_EMAIL` | `pash@allpracticesolutions.com` |
    | `DASHBOARD_USER` | *(pick a username)* |
    | `DASHBOARD_PASS` | *(pick a strong password)* |
+
+   **Important — Render's free tier blocks plain SMTP.** Render blocks all
+   outbound traffic on ports 25/465/587 (what SMTP uses) on its free instance
+   type, so `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`-style setups (including a
+   Gmail app password — see Part 3 below) will just time out and silently
+   fail to send here. Use `BREVO_API_KEY` instead: it's Brevo's HTTPS API,
+   which rides over the same port (443) your dashboard already uses, so it
+   isn't affected by that block. Sign up free at brevo.com, verify a sender
+   email under **Senders, Domains & Dedicated IPs → Senders**, then generate
+   a key under **SMTP & API → API Keys** (the API Keys tab specifically, not
+   the SMTP tab/SMTP key — those are for the plain-SMTP method, which won't
+   work on Render's free tier). If you're running this app somewhere that
+   doesn't block outbound SMTP (your own computer, a paid Render instance,
+   most other hosts), the `SMTP_*` variables from Part 3 work fine instead —
+   just leave `BREVO_API_KEY` blank in that case.
 
 6. Click **Create Web Service**. Render will build and deploy — after a couple
    of minutes you'll get a URL like `https://uptime-watch-xxxx.onrender.com`.
@@ -158,9 +169,11 @@ asleep when it would normally have fired. Because your data now lives in Neon
 rather than on Render's disk, none of this sleep/wake/redeploy cycle can wipe it
 anymore.
 
-### Part 3 — Create a Gmail/Google Workspace app password
+### Part 3 — Create a Gmail/Google Workspace app password (only if NOT using Render's free tier)
 
-Since `pash@allpracticesolutions.com` is on Google Workspace:
+Skip this if you're on Render's free tier and used `BREVO_API_KEY` above —
+this is the plain-SMTP alternative for local use or hosts that don't block
+outbound SMTP. Since `pash@allpracticesolutions.com` is on Google Workspace:
 
 1. Go to **myaccount.google.com/security** and make sure **2-Step Verification**
    is turned on (required for app passwords).
