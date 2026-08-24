@@ -67,9 +67,15 @@ Postgres database), not just a visual mockup.
   (grouped by severity, worst first), plus anything that just recovered. It
   fires every cycle for as long as a problem persists — not just once when it
   first appears — so the report in your inbox always matches reality. Subject
-  lines are precise: a single issue reads like `DOWN - example.com | HTTP 500`;
-  multiple issues summarize as `WARNING - 2 WARNING, 1 SLOW`; an all-clear reads
-  `UP - example.com is back up`.
+  lines are precise and always end with the brand so they're easy to spot in
+  an inbox: a single issue reads like `DOWN - example.com | HTTP 500 —
+  Uptime Watch.com`; multiple issues summarize as `WARNING - 2 WARNING, 1
+  SLOW — Uptime Watch.com`; an all-clear reads `UP - example.com is back up
+  — Uptime Watch.com`. Every line in the body — each problem, each section
+  header, and each recovered site — is prefixed with a colored circle you
+  can scan without reading the words: 🔴 Down, 🟡 Warning, 🔵 Slow, 🟢
+  Recovered/Up — the same colors used for the badges and chart in the
+  dashboard itself.
 - **Alert recipients are set from the dashboard**, not a fixed config file —
   gear icon → Settings → "Alert recipients" takes a comma-separated list of
   email addresses and takes effect on the next check, no redeploy needed.
@@ -341,10 +347,17 @@ different things to your team:
 
 A Slow result still counts as "available" for uptime% purposes (it did
 succeed), but is broken out separately everywhere — the status badges, the
-chart's point colors and legend, the daily log's filter, the homepage's
-overview tile, and the digest email's own "SLOW" section — so "the checkout
-page is loading slowly today" is never confused with "the checkout page is
-down".
+daily log's filter, the homepage's overview tile, and the digest email's own
+"SLOW" section — so "the checkout page is loading slowly today" is never
+confused with "the checkout page is down". Slow's color is blue throughout
+(badges, chart, digest circles), distinct from Warning's yellow and Down's
+red.
+
+The response-time chart itself changes color along the line, not just at its
+dots — green while a target was up, blue while slow, yellow while warning,
+red while down — so a stretch of downtime or a dip into slow responses reads
+as a colored shape in the trend line at a glance, instead of requiring you to
+hover over individual points to figure out what happened when.
 
 ### A note on the digest email & "Mark as Fixed"
 

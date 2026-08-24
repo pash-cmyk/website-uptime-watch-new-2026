@@ -6,7 +6,7 @@ if (!siteId) {
   throw new Error('missing id');
 }
 
-const STATUS_COLORS = { up: '#0ca30c', slow: '#0e9bab', warning: '#fab219', down: '#d03b3b' };
+const STATUS_COLORS = { up: '#0ca30c', slow: '#2563eb', warning: '#fab219', down: '#d03b3b' };
 
 // Base for header/analytics/check/history calls — page-scoped when ?page= is present.
 const apiBase = pageId ? `/api/sites/${siteId}/pages/${pageId}` : `/api/sites/${siteId}`;
@@ -116,6 +116,10 @@ function renderChart(series) {
   const labels = series.map((s) => formatTime(s.ts));
   const dataPoints = series.map((s) => s.responseTimeMs);
   const pointColors = series.map((s) => STATUS_COLORS[s.category] || '#898781');
+  // Up/Slow/Warning/Down each get a bigger, more visible dot than a plain
+  // Up point — the eye should land on trouble spots first, not have to hunt
+  // for a same-size dot in a different color.
+  const pointRadii = series.map((s) => (s.category === 'up' ? 2 : 4));
 
   chart = new Chart(canvas.getContext('2d'), {
     type: 'line',
@@ -124,15 +128,23 @@ function renderChart(series) {
       datasets: [{
         label: 'Response time (ms)',
         data: dataPoints,
-        borderColor: '#2a78d6',
-        borderWidth: 2,
-        backgroundColor: 'rgba(42,120,214,0.08)',
-        fill: true,
+        // The line itself changes color exactly where status changes —
+        // green while up, blue while slow, yellow while warning, red while
+        // down — so the trend is readable as a shape (a red stretch, a blue
+        // dip) at a glance, instead of only showing up as small colored dots
+        // on an otherwise uniform blue line.
+        segment: {
+          borderColor: (ctx) => STATUS_COLORS[series[ctx.p1DataIndex].category] || '#898781',
+        },
+        borderColor: STATUS_COLORS.up,
+        borderWidth: 2.5,
+        fill: false,
         tension: 0.15,
-        pointRadius: 2,
+        pointRadius: pointRadii,
         pointHoverRadius: 6,
         pointHitRadius: 10,
         pointBackgroundColor: pointColors,
+        pointBorderColor: pointColors,
         spanGaps: true,
       }],
     },
@@ -147,8 +159,8 @@ function renderChart(series) {
             label(ctx) {
               const s = series[ctx.dataIndex];
               const parts = [`${ctx.parsed.y}ms`];
-              const CATEGORY_LABELS = { slow: 'Slow', warning: 'Warning', down: 'Down' };
-              if (s.category !== 'up' && CATEGORY_LABELS[s.category]) parts.push(CATEGORY_LABELS[s.category]);
+              const CATEGORY_LABELS = { up: 'Up', slow: 'Slow', warning: 'Warning', down: 'Down' };
+              if (CATEGORY_LABELS[s.category]) parts.push(CATEGORY_LABELS[s.category]);
               return parts.join(' · ');
             },
           },

@@ -2,7 +2,7 @@
   --brand: #2a78d6;
   --brand-dark: #184f95;
   --good: #0ca30c;
-  --slow: #0e9bab;
+  --slow: #2563eb;
   --warning: #fab219;
   --critical: #d03b3b;
   --ink: #0b0b0b;
@@ -92,7 +92,7 @@ body {
 }
 .status-up { background: #eafaea; color: #086b08; }
 .status-up::before { background: var(--good); animation: pulse-good 2s infinite; }
-.status-slow { background: #e3f6f8; color: #0b6e7a; }
+.status-slow { background: #e8f0fe; color: #1d4ed8; }
 .status-slow::before { background: var(--slow); }
 .status-warning { background: #fef6e6; color: #8a5a00; }
 .status-warning::before { background: var(--warning); }
