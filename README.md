@@ -136,8 +136,9 @@ connects, so there's nothing else to set up on Neon's side.
    |---|---|
    | `DATABASE_URL` | *(the connection string you copied from Neon in Part 0)* |
    | `CHECK_INTERVAL_CRON` | `0 * * * *` |
-   | `BREVO_API_KEY` | *(your Brevo API key — see the important note below)* |
-   | `ALERT_FROM_EMAIL` | *(the sender email you verified in Brevo)* |
+   | `MJ_API_KEY` | *(your Mailjet API key — see the important note below)* |
+   | `MJ_API_SECRET` | *(your Mailjet secret key)* |
+   | `ALERT_FROM_EMAIL` | *(the sender email you verified in Mailjet)* |
    | `ALERT_TO_EMAIL` | `pash@allpracticesolutions.com` |
    | `DASHBOARD_USER` | *(pick a username)* |
    | `DASHBOARD_PASS` | *(pick a strong password)* |
@@ -146,16 +147,20 @@ connects, so there's nothing else to set up on Neon's side.
    outbound traffic on ports 25/465/587 (what SMTP uses) on its free instance
    type, so `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`-style setups (including a
    Gmail app password — see Part 3 below) will just time out and silently
-   fail to send here. Use `BREVO_API_KEY` instead: it's Brevo's HTTPS API,
-   which rides over the same port (443) your dashboard already uses, so it
-   isn't affected by that block. Sign up free at brevo.com, verify a sender
-   email under **Senders, Domains & Dedicated IPs → Senders**, then generate
-   a key under **SMTP & API → API Keys** (the API Keys tab specifically, not
-   the SMTP tab/SMTP key — those are for the plain-SMTP method, which won't
-   work on Render's free tier). If you're running this app somewhere that
-   doesn't block outbound SMTP (your own computer, a paid Render instance,
-   most other hosts), the `SMTP_*` variables from Part 3 work fine instead —
-   just leave `BREVO_API_KEY` blank in that case.
+   fail to send here. Use `MJ_API_KEY`/`MJ_API_SECRET` instead: that's
+   Mailjet's HTTPS API, which rides over the same port (443) your dashboard
+   already uses, so it isn't affected by that block. Sign up free at
+   mailjet.com (no credit card, 6,000 emails/month), verify a sender email
+   under **Account Settings → Sender addresses & domains** (click the
+   confirmation link Mailjet emails you), then grab both keys under
+   **Account Settings → API Key Management**. If you're running this app
+   somewhere that doesn't block outbound SMTP (your own computer, a paid
+   Render instance, most other hosts), the `SMTP_*` variables from Part 3
+   work fine instead — just leave `MJ_API_KEY`/`MJ_API_SECRET` blank in that
+   case. (Brevo's API also works as a `BREVO_API_KEY` alternative, but note
+   it requires an active plan with email credits remaining — including its
+   free plan — or sends will silently fail with an "insufficient credits"
+   error even though everything else is configured correctly.)
 
 6. Click **Create Web Service**. Render will build and deploy — after a couple
    of minutes you'll get a URL like `https://uptime-watch-xxxx.onrender.com`.
