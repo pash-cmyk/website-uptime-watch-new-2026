@@ -25,6 +25,7 @@
         <button id="nextPageBtn" class="btn btn-sm btn-outline-secondary" title="Next page">›</button>
       </div>
       <span class="status-badge badge rounded-pill" id="siteStatusBadge"></span>
+      <button id="markFixedBtn" class="btn btn-sm btn-outline-success d-none" title="Silence this alert until the next automatic check">✓ Mark as Fixed</button>
       <button id="checkNowBtn" class="btn btn-sm btn-outline-secondary">
         <span class="spinner-border spinner-border-sm d-none" id="checkNowSpinner"></span>
         Check now
@@ -60,6 +61,8 @@
       <label class="btn btn-outline-secondary" for="logAll">All checks</label>
       <input type="radio" class="btn-check" name="logStatusFilter" id="logUp" value="up">
       <label class="btn btn-outline-secondary" for="logUp">Up</label>
+      <input type="radio" class="btn-check" name="logStatusFilter" id="logSlow" value="slow">
+      <label class="btn btn-outline-secondary" for="logSlow">Slow</label>
       <input type="radio" class="btn-check" name="logStatusFilter" id="logWarning" value="warning">
       <label class="btn btn-outline-secondary" for="logWarning">Warning</label>
       <input type="radio" class="btn-check" name="logStatusFilter" id="logDown" value="down">
@@ -102,6 +105,7 @@
         <h3 class="section-title mb-0">Response time</h3>
         <div class="chart-legend small text-muted">
           <span class="legend-dot legend-up"></span> Up
+          <span class="legend-dot legend-slow"></span> Slow
           <span class="legend-dot legend-warning"></span> Warning
           <span class="legend-dot legend-down"></span> Down
         </div>
@@ -133,6 +137,8 @@
             <label class="btn btn-outline-secondary" for="pageFilterAll">All</label>
             <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterUp" value="up">
             <label class="btn btn-outline-secondary" for="pageFilterUp">Up</label>
+            <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterSlow" value="slow">
+            <label class="btn btn-outline-secondary" for="pageFilterSlow">Slow</label>
             <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterWarning" value="warning">
             <label class="btn btn-outline-secondary" for="pageFilterWarning">Warning</label>
             <input type="radio" class="btn-check" name="pageStatusFilter" id="pageFilterDown" value="down">
@@ -229,6 +235,7 @@
     </td>
     <td class="small text-muted text-nowrap meta-line"></td>
     <td class="text-end text-nowrap">
+      <button class="btn btn-sm btn-outline-success btn-mark-fixed-page d-none" title="Silence this alert until the next automatic check">✓ Fixed</button>
       <button class="btn btn-sm btn-outline-secondary btn-recheck-page" title="Check now">↻</button>
       <button class="btn btn-sm btn-outline-danger btn-remove-page" title="Remove">✕</button>
     </td>

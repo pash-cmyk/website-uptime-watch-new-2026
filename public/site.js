@@ -6,7 +6,7 @@ if (!siteId) {
   throw new Error('missing id');
 }
 
-const STATUS_COLORS = { up: '#0ca30c', warning: '#fab219', down: '#d03b3b' };
+const STATUS_COLORS = { up: '#0ca30c', slow: '#0e9bab', warning: '#fab219', down: '#d03b3b' };
 
 // Base for header/analytics/check/history calls — page-scoped when ?page= is present.
 const apiBase = pageId ? `/api/sites/${siteId}/pages/${pageId}` : `/api/sites/${siteId}`;
@@ -42,6 +42,14 @@ function currentRange() {
   return { from: from.toISOString(), to: null };
 }
 
+// Shows/hides the header's "Mark as Fixed" button — only meaningful while
+// this target actually has a problem, and hides itself again the moment the
+// dashboard reflects "up" (either a real recovery, or right after clicking
+// it, since acknowledging overrides the displayed status to 'up' too).
+function updateMarkFixedButton(hasProblem) {
+  document.getElementById('markFixedBtn').classList.toggle('d-none', !hasProblem);
+}
+
 async function loadSiteHeader() {
   const backLink = document.getElementById('backLink');
 
@@ -58,6 +66,7 @@ async function loadSiteHeader() {
     const badge = document.getElementById('siteStatusBadge');
     badge.className = 'status-badge badge rounded-pill ' + info.cls;
     badge.textContent = info.label;
+    updateMarkFixedButton(Boolean(data.latest) && data.latest.category !== 'up');
     backLink.href = `/site.html?id=${siteId}`;
     document.getElementById('pagesSection').classList.add('d-none');
     return data;
@@ -75,6 +84,10 @@ async function loadSiteHeader() {
   const badge = document.getElementById('siteStatusBadge');
   badge.className = 'status-badge badge rounded-pill ' + info.cls;
   badge.textContent = info.label;
+  // "Mark as Fixed" in the header silences the SITE'S OWN ROOT URL, not its
+  // pages (those get their own per-row button below) — so it only shows
+  // when the root URL itself, specifically, currently has a problem.
+  updateMarkFixedButton(Boolean(site.latest) && site.latest.category !== 'up');
   backLink.href = '/';
   document.getElementById('pagesSection').classList.remove('d-none');
   return site;
@@ -134,7 +147,8 @@ function renderChart(series) {
             label(ctx) {
               const s = series[ctx.dataIndex];
               const parts = [`${ctx.parsed.y}ms`];
-              if (s.category !== 'up') parts.push(s.category === 'warning' ? 'Warning' : 'Down');
+              const CATEGORY_LABELS = { slow: 'Slow', warning: 'Warning', down: 'Down' };
+              if (s.category !== 'up' && CATEGORY_LABELS[s.category]) parts.push(CATEGORY_LABELS[s.category]);
               return parts.join(' · ');
             },
           },
@@ -272,6 +286,22 @@ function renderPages(pages) {
     node.querySelector('.detail-line').textContent = `${detailLine(page.latest)}${uptimeText}`;
 
     node.querySelector('.meta-line').textContent = timeAgo(page.latest && page.latest.ts);
+
+    const markFixedBtn = node.querySelector('.btn-mark-fixed-page');
+    markFixedBtn.classList.toggle('d-none', !(page.latest && page.latest.category !== 'up'));
+    markFixedBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        await fetchJSON(`/api/sites/${siteId}/pages/${page.id}/acknowledge`, { method: 'POST' });
+        await loadPages();
+      } catch (err) {
+        alert('Could not mark as fixed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
 
     node.querySelector('.btn-recheck-page').addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -478,6 +508,23 @@ document.getElementById('checkNowBtn').addEventListener('click', async () => {
   } finally {
     btn.disabled = false;
     spinner.classList.add('d-none');
+  }
+});
+
+document.getElementById('markFixedBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('markFixedBtn');
+  btn.disabled = true;
+  try {
+    // pageId set -> this view is a single page's own detail page, so "Mark
+    // as Fixed" silences that page specifically; otherwise it silences the
+    // site's own root URL (its pages, if any, get their own button below).
+    const endpoint = pageId ? `${apiBase}/acknowledge` : `/api/sites/${siteId}/acknowledge`;
+    await fetchJSON(endpoint, { method: 'POST' });
+    await loadSiteHeader();
+  } catch (err) {
+    alert('Could not mark as fixed: ' + err.message);
+  } finally {
+    btn.disabled = false;
   }
 });
 

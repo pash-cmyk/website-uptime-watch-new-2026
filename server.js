@@ -59,24 +59,40 @@ app.get('/api/settings', async (req, res) => {
 });
 
 app.put('/api/settings', async (req, res) => {
-  const { checkIntervalCron, requestTimeoutMs } = req.body || {};
+  const { checkIntervalCron, requestTimeoutMs, alertRecipients, slowThresholdMs } = req.body || {};
   const patch = {};
   if (checkIntervalCron) {
     if (!cron.validate(checkIntervalCron)) return res.status(400).json({ error: 'Invalid cron expression' });
     patch.checkIntervalCron = checkIntervalCron;
   }
   if (requestTimeoutMs) patch.requestTimeoutMs = Number(requestTimeoutMs);
+  if (slowThresholdMs) patch.slowThresholdMs = Number(slowThresholdMs);
+  // Recipients live in the database (editable live, no redeploy) but the
+  // mailer/digest read them from ALERT_TO_EMAIL, same pattern as the cron
+  // schedule and timeout below — an empty string is a valid choice (turns
+  // alerts off), so check `!== undefined` rather than truthiness.
+  if (alertRecipients !== undefined) patch.alertRecipients = String(alertRecipients).trim();
+
   const settings = await store.updateSettings(patch);
   if (patch.checkIntervalCron) {
     process.env.CHECK_INTERVAL_CRON = patch.checkIntervalCron;
     startScheduler(patch.checkIntervalCron);
   }
   if (patch.requestTimeoutMs) process.env.REQUEST_TIMEOUT_MS = String(patch.requestTimeoutMs);
+  if (patch.slowThresholdMs) process.env.SLOW_THRESHOLD_MS = String(patch.slowThresholdMs);
+  if (patch.alertRecipients !== undefined) process.env.ALERT_TO_EMAIL = patch.alertRecipients;
   res.json(settings);
 });
 
 app.get('/api/analytics', async (req, res) => {
   res.json(await store.getCollectiveAnalytics());
+});
+
+// Recent digest-email send attempts — timestamp, subject, recipients,
+// success/failure — shown in the dashboard's "Mail log" view.
+app.get('/api/mail-log', async (req, res) => {
+  const { limit } = req.query;
+  res.json(await store.getMailLog(limit ? Number(limit) : undefined));
 });
 
 // Download a spreadsheet snapshot of everything currently in the database —
@@ -229,6 +245,23 @@ app.post('/api/sites/:id/check-all', async (req, res) => {
   });
 });
 
+// "Mark as Fixed" for a site's root URL, called from the in-app button (JS
+// fetch — expects JSON back).
+app.post('/api/sites/:id/acknowledge', async (req, res) => {
+  const ok = await store.acknowledgeSite(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'site not found' });
+  res.json(await store.getSite(req.params.id));
+});
+
+// Same action, but as a plain GET that redirects into the tool afterward —
+// this is what the "Mark as Fixed" link in the digest email points at, since
+// an email client can only ever follow a link (GET), never fire our JSON
+// POST route or attach anything to the request.
+app.get('/api/sites/:id/ack', async (req, res) => {
+  await store.acknowledgeSite(req.params.id);
+  res.redirect(`/site.html?id=${req.params.id}`);
+});
+
 // Re-scans the site for pages (sitemap first, homepage-link crawl as a
 // fallback) and adds any newly found ones — pages already tracked are left
 // untouched (never duplicated or removed). Runs synchronously since it's an
@@ -316,6 +349,19 @@ app.delete('/api/sites/:id/pages/:pageId', async (req, res) => {
   res.status(204).end();
 });
 
+// "Mark as Fixed" for a single page — same two flavors as the site-level
+// route above (JSON for the in-app button, GET-redirect for the email link).
+app.post('/api/sites/:id/pages/:pageId/acknowledge', async (req, res) => {
+  const ok = await store.acknowledgePage(req.params.id, req.params.pageId);
+  if (!ok) return res.status(404).json({ error: 'page not found' });
+  res.json(await store.getPage(req.params.id, req.params.pageId));
+});
+
+app.get('/api/sites/:id/pages/:pageId/ack', async (req, res) => {
+  await store.acknowledgePage(req.params.id, req.params.pageId);
+  res.redirect(`/site.html?id=${req.params.id}&page=${req.params.pageId}`);
+});
+
 app.get('/api/sites/:id/pages/:pageId/analytics', async (req, res) => {
   const page = await store.getPage(req.params.id, req.params.pageId);
   if (!page) return res.status(404).json({ error: 'page not found' });
@@ -345,6 +391,13 @@ app.post('/api/check-all', async (req, res) => {
   if (!process.env.REQUEST_TIMEOUT_MS && settings.requestTimeoutMs) {
     process.env.REQUEST_TIMEOUT_MS = String(settings.requestTimeoutMs);
   }
+  if (!process.env.SLOW_THRESHOLD_MS && settings.slowThresholdMs) {
+    process.env.SLOW_THRESHOLD_MS = String(settings.slowThresholdMs);
+  }
+  // The database is the source of truth for recipients once the app has run
+  // once — this only seeds ALERT_TO_EMAIL from it on the very first boot
+  // after a redeploy, before anyone has touched the Settings panel.
+  if (settings.alertRecipients) process.env.ALERT_TO_EMAIL = settings.alertRecipients;
   startScheduler(settings.checkIntervalCron);
   checkAllSites().catch((e) => console.error('[startup] initial check run failed', e));
 

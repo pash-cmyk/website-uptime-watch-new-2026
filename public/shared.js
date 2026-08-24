@@ -39,10 +39,17 @@ function formatDay(dateStr) {
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
-// category -> { label, cls } used for badges everywhere
+// category -> { label, cls } used for badges everywhere.
+//
+// 'slow' is deliberately its own tier, never folded into 'warning' or
+// 'down' — a slow-but-successful response is a performance problem, not an
+// availability failure, and showing it as anything but "Slow" would let the
+// team misread "slow" as "down" (exactly what this distinction exists to
+// prevent).
 function statusInfo(latest) {
   if (!latest) return { cls: 'status-unknown', label: 'Checking…' };
   if (latest.category === 'up') return { cls: 'status-up', label: 'Up' };
+  if (latest.category === 'slow') return { cls: 'status-slow', label: `Slow · ${latest.responseTimeMs}ms` };
   if (latest.category === 'warning') return { cls: 'status-warning', label: `HTTP ${latest.httpStatus}` };
   return { cls: 'status-down', label: latest.httpStatus ? `HTTP ${latest.httpStatus}` : 'Down' };
 }
@@ -51,31 +58,35 @@ function detailLine(latest) {
   if (!latest) return 'Not checked yet';
   if (latest.error) return latest.error;
   if (latest.category === 'up') return `Responded in ${latest.responseTimeMs}ms`;
+  if (latest.category === 'slow') return `Responded in ${latest.responseTimeMs}ms — slower than usual, but the page loaded`;
   if (latest.category === 'warning') return `Server responded but returned HTTP ${latest.httpStatus}`;
   return `HTTP ${latest.httpStatus} — server error`;
 }
 
 // A site's status badge is never just its root URL's status — it's the root
 // URL AND every page tracked under it, considered together (see
-// aggregateStatus() in lib/store.js for the exact rule: all up -> up, all
-// down/warning -> down, anything mixed -> warning).
+// aggregateStatus() in lib/store.js for the exact rule: all healthy
+// (up/slow) -> up, or 'slow' if any of them were slow; nothing healthy at
+// all -> down; anything mixed -> warning).
 function aggregateStatusInfo(site) {
   if (!site.targetsTotal) return { cls: 'status-unknown', label: 'Checking…' };
   if (site.aggregateStatus === 'up') return { cls: 'status-up', label: 'Up' };
+  if (site.aggregateStatus === 'slow') return { cls: 'status-slow', label: 'Slow' };
   if (site.aggregateStatus === 'down') return { cls: 'status-down', label: 'Down' };
   return { cls: 'status-warning', label: 'Warning' };
 }
 
 // The line under a site's name on its card: a breakdown of how many of its
-// targets (root + pages) are up/warning/down, so "9 up, 1 down" is visible
-// at a glance instead of hiding behind a single Up/Down badge. Sites with no
-// pages just show the root's own detail, since a "1 up" breakdown of one
+// targets (root + pages) are up/slow/warning/down, so "8 up, 1 slow, 1 down"
+// is visible at a glance instead of hiding behind a single badge. Sites with
+// no pages just show the root's own detail, since a "1 up" breakdown of one
 // target adds nothing.
 function targetBreakdownLine(site) {
   if (!site.targetsTotal) return 'Not checked yet';
   if (!site.pageCount) return detailLine(site.latest);
   const parts = [];
   if (site.targetsUp) parts.push(`${site.targetsUp} up`);
+  if (site.targetsSlow) parts.push(`${site.targetsSlow} slow`);
   if (site.targetsWarning) parts.push(`${site.targetsWarning} warning`);
   if (site.targetsDown) parts.push(`${site.targetsDown} down`);
   return parts.join(' · ') || 'Not checked yet';

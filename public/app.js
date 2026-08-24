@@ -12,6 +12,7 @@ async function loadAnalytics() {
   document.getElementById('statTotal').textContent = a.totalSites;
   document.getElementById('statUp').textContent = a.up;
   document.getElementById('statDown').textContent = a.down + a.warning;
+  document.getElementById('statSlow').textContent = a.slow || 0;
   document.getElementById('statAvgUptime').textContent = a.avgUptimePct != null ? `${a.avgUptimePct}%` : '—';
   document.getElementById('statAvgResponse').textContent = a.avgResponseMs != null ? `${a.avgResponseMs}ms` : '—';
   document.getElementById('statTotalPages').textContent = a.totalPages != null ? a.totalPages : '—';
@@ -217,6 +218,8 @@ document.getElementById('settingsModal').addEventListener('show.bs.modal', async
     customCronInput.value = settings.checkIntervalCron;
   }
   document.getElementById('timeoutInput').value = settings.requestTimeoutMs;
+  document.getElementById('slowThresholdInput').value = settings.slowThresholdMs;
+  document.getElementById('alertRecipientsInput').value = settings.alertRecipients || '';
 });
 
 scheduleSelect.addEventListener('change', () => {
@@ -231,18 +234,55 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
 
   const checkIntervalCron = scheduleSelect.value === 'custom' ? customCronInput.value.trim() : scheduleSelect.value;
   const requestTimeoutMs = document.getElementById('timeoutInput').value;
+  const slowThresholdMs = document.getElementById('slowThresholdInput').value;
+  const alertRecipients = document.getElementById('alertRecipientsInput').value.trim();
 
   try {
     await fetchJSON('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checkIntervalCron, requestTimeoutMs }),
+      body: JSON.stringify({ checkIntervalCron, requestTimeoutMs, slowThresholdMs, alertRecipients }),
     });
     savedEl.classList.remove('d-none');
     await loadStatus();
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.classList.remove('d-none');
+  }
+});
+
+// ---------- Mail log ----------
+
+document.getElementById('mailLogModal').addEventListener('show.bs.modal', async () => {
+  const tbody = document.getElementById('mailLogBody');
+  const emptyEl = document.getElementById('mailLogEmpty');
+  tbody.innerHTML = '';
+  try {
+    const entries = await fetchJSON('/api/mail-log');
+    emptyEl.classList.toggle('d-none', entries.length > 0);
+    entries.forEach((e) => {
+      const tr = document.createElement('tr');
+      const tdSent = document.createElement('td');
+      tdSent.className = 'small text-nowrap';
+      tdSent.textContent = formatTime(e.sentAt);
+      const tdSubject = document.createElement('td');
+      tdSubject.className = 'small';
+      tdSubject.textContent = e.subject;
+      const tdRecipients = document.createElement('td');
+      tdRecipients.className = 'small text-muted';
+      tdRecipients.textContent = e.recipients || '—';
+      const tdResult = document.createElement('td');
+      const badge = document.createElement('span');
+      badge.className = 'status-badge badge rounded-pill ' + (e.success ? 'status-up' : 'status-down');
+      badge.textContent = e.success ? 'Sent' : 'Failed';
+      badge.title = e.error || '';
+      tdResult.appendChild(badge);
+      tr.append(tdSent, tdSubject, tdRecipients, tdResult);
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    emptyEl.textContent = 'Failed to load mail log: ' + err.message;
+    emptyEl.classList.remove('d-none');
   }
 });
 

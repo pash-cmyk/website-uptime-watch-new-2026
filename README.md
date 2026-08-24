@@ -11,18 +11,28 @@ Postgres database), not just a visual mockup.
 
 ## What it does
 
-- **Homepage**: a collective analytics overview (monitored/up/down counts, average
-  uptime %, average response time across every site, total pages tracked) above a
-  filterable, searchable grid of site cards — each showing how many pages are
-  tracked under it.
+- **Homepage**: a collective analytics overview (monitored/up/down/slow counts,
+  average uptime %, average response time across every site, total pages
+  tracked) above a filterable, searchable grid of site cards — each showing how
+  many pages are tracked under it.
 - **A site's status is never just its homepage's status.** Every site card (and
   the site's own detail page) shows one combined status computed across the root
-  URL **and every page tracked under it**: all of them up → **Up**; all of them
-  down → **Down**; anything in between (say, the homepage is fine but one inner
-  page is erroring) → **Warning**. The card's detail line spells out the actual
-  breakdown — e.g. "9 up · 1 down" — instead of hiding it behind a single badge,
-  and the homepage's overview counts (Up now / Down or issue) are built from this
-  same combined status, not from root-URL checks alone.
+  URL **and every page tracked under it**: all of them healthy (up or slow) →
+  **Up**, or **Slow** if any of them were slow; none of them healthy at all →
+  **Down**; anything in between (say, the homepage is fine but one inner page is
+  erroring) → **Warning**. The card's detail line spells out the actual
+  breakdown — e.g. "8 up · 1 slow · 1 down" — instead of hiding it behind a
+  single badge, and the homepage's overview counts are built from this same
+  combined status, not from root-URL checks alone.
+- **"Slow" is not "Down".** A 500 error, a timeout, or a connection failure
+  is a real availability failure and is always classified **Down** — it blocks
+  users completely. A page that returns a normal 200 OK but takes longer than
+  the configured slow threshold (Settings → "Slow threshold") is classified
+  **Slow** instead — a performance problem the user can still work around, not
+  an outage. These are shown with distinct badges/colors everywhere (site
+  cards, the detail page's chart and daily log, the digest email) specifically
+  so a team glancing at the dashboard never mistakes "a bit slow today" for
+  "the site is down".
 - **Add one site, or many at once** — the "Add website" modal has a bulk mode:
   paste a list of URLs (one per line, optionally `Name, URL`) and they're all
   added and checked immediately.
@@ -49,8 +59,31 @@ Postgres database), not just a visual mockup.
   everything is checked (5 minutes up to once a day, or a custom cron expression)
   without editing any file or restarting the app; it takes effect immediately.
 - Records the **actual HTTP status code** — 200, 301, 404, 500, timeouts, DNS
-  failures, connection refused, etc. — and classifies each as Up / Warning / Down.
-- Sends an email the moment a site or page goes down, and another when it recovers.
+  failures, connection refused, etc. — and classifies each as Up / Slow / Warning / Down.
+- **One consolidated digest email per check cycle** — instead of a separate
+  email for every individual page transition (which gets unmanageable fast once
+  you're tracking dozens of pages), Uptime Watch sends a single report each time
+  the scheduler runs, listing every site/page currently Down, Warning, or Slow
+  (grouped by severity, worst first), plus anything that just recovered. It
+  fires every cycle for as long as a problem persists — not just once when it
+  first appears — so the report in your inbox always matches reality. Subject
+  lines are precise: a single issue reads like `DOWN - example.com | HTTP 500`;
+  multiple issues summarize as `WARNING - 2 WARNING, 1 SLOW`; an all-clear reads
+  `UP - example.com is back up`.
+- **Alert recipients are set from the dashboard**, not a fixed config file —
+  gear icon → Settings → "Alert recipients" takes a comma-separated list of
+  email addresses and takes effect on the next check, no redeploy needed.
+- **"Mark as Fixed"** — every problem row in the digest email (and the "Mark as
+  Fixed" button on a site/page's own detail page) lets you silence that one
+  target's alerts immediately, without waiting for the next check to confirm
+  it. Clicking it takes you straight to that site/page in the dashboard. The
+  silence only lasts until the *next* automatic check, though — if the
+  underlying problem isn't actually fixed, it reappears in the very next
+  report, so acknowledging something never permanently hides a real issue.
+- **Mail log** — the small mail icon next to Settings opens a log of every
+  digest email attempt: when it was sent, its subject, who it went to, and
+  whether it actually succeeded (so a misconfigured mail provider is visible
+  in the dashboard, not just buried in server logs).
 - **"Check now" checks everything under a site** — on a site's own dashboard,
   it re-checks the root URL and every page under it in one go, and the results
   show up immediately in that site's combined daily summary.
@@ -135,13 +168,28 @@ connects, so there's nothing else to set up on Neon's side.
    | Key | Value |
    |---|---|
    | `DATABASE_URL` | *(the connection string you copied from Neon in Part 0)* |
+   | `APP_BASE_URL` | `https://<your-render-url>.onrender.com` *(fill this in after your first deploy — see note below)* |
    | `CHECK_INTERVAL_CRON` | `0 * * * *` |
    | `MJ_API_KEY` | *(your Mailjet API key — see the important note below)* |
    | `MJ_API_SECRET` | *(your Mailjet secret key)* |
    | `ALERT_FROM_EMAIL` | *(the sender email you verified in Mailjet)* |
-   | `ALERT_TO_EMAIL` | `pash@allpracticesolutions.com` |
+   | `ALERT_TO_EMAIL` | `pash@allpracticesolutions.com` *(just the first-boot default — see note below)* |
    | `DASHBOARD_USER` | *(pick a username)* |
    | `DASHBOARD_PASS` | *(pick a strong password)* |
+
+   `APP_BASE_URL` is only used to build absolute links in the digest email
+   (the "Mark as Fixed" and site-detail links) — email clients can't resolve a
+   relative link the way a browser can, so without this set those links won't
+   work from an inbox. Render only assigns your `https://....onrender.com` URL
+   *after* the first deploy, so create the service first, copy the URL it
+   gives you, then come back and add `APP_BASE_URL` as an environment variable
+   (Render redeploys automatically when you save it).
+
+   `ALERT_TO_EMAIL` only seeds the recipient list the very first time the app
+   boots against a brand-new database — after that, the database is the
+   source of truth and the real place to manage recipients is the dashboard's
+   gear icon → Settings → **Alert recipients** (comma-separated, editable any
+   time, no redeploy needed).
 
    **Important — Render's free tier blocks plain SMTP.** Render blocks all
    outbound traffic on ports 25/465/587 (what SMTP uses) on its free instance
@@ -220,28 +268,32 @@ database.
 
 ```
 server.js          Express app, REST API, basic auth, and the live scheduler
-lib/checker.js      Does the actual HTTP request and classifies the result
+lib/checker.js      Does the actual HTTP request and classifies the result (Up/Slow/Warning/Down)
 lib/discover.js       Auto-discovers a site's pages (sitemap, or homepage-link crawl fallback)
-lib/monitor.js          Runs a check for one/all sites & pages, decides when to alert
-lib/mailer.js             Sends the email alert via SMTP (nodemailer)
-lib/store.js                Postgres-backed data layer (sites, pages, checks, settings, analytics, .xlsx export)
-public/index.html    Homepage — collective analytics + filterable site grid
+lib/monitor.js          Runs a check for one/all sites & pages, tracks recoveries, triggers the digest
+lib/digest.js             Builds & sends the one consolidated report email per check cycle, logs it
+lib/mailer.js               Sends a single email via Mailjet/Brevo's HTTPS API or SMTP (nodemailer)
+lib/store.js                  Postgres-backed data layer (sites, pages, checks, settings, mail log, analytics, .xlsx export)
+public/index.html    Homepage — collective analytics + filterable site grid + Settings + Mail log
 public/site.html       Site/page detail page — date-range analytics, chart, daily summary, pages list
-public/app.js          Homepage logic (analytics, filters, add/bulk-add, settings)
-public/site.js           Detail page logic (site or page scope, date range, chart, daily summary, page add/remove/scan, prev/next nav)
+public/app.js          Homepage logic (analytics, filters, add/bulk-add, settings, mail log)
+public/site.js           Detail page logic (site or page scope, date range, chart, daily summary, page add/remove/scan, prev/next nav, mark as fixed)
 public/shared.js           Helpers shared by both pages
 public/style.css             Styling on top of Bootstrap
 ```
 
 ## API (for reference / scripting)
 
-- `GET /api/analytics` — collective stats across all sites (average uptime %, average response time, up/warning/down counts, total pages tracked)
+- `GET /api/analytics` — collective stats across all sites (average uptime %, average response time, up/slow/warning/down counts, total pages tracked)
 - `GET /api/export` — download a fresh `.xlsx` snapshot of everything in the database
-- `GET /api/sites` — list all sites with their latest status + 7-day uptime stats + `pageCount`, plus the combined-status fields `aggregateStatus` (`up`/`warning`/`down`/`unknown`) and `targetsUp`/`targetsWarning`/`targetsDown`/`targetsTotal` — the breakdown across the root URL and every page under it (see "A note on site-wide status" below)
+- `GET /api/mail-log?limit=` — recent digest email attempts (timestamp, subject, recipients, success/failure)
+- `GET /api/sites` — list all sites with their latest status + 7-day uptime stats + `pageCount`, plus the combined-status fields `aggregateStatus` (`up`/`slow`/`warning`/`down`/`unknown`) and `targetsUp`/`targetsSlow`/`targetsWarning`/`targetsDown`/`targetsTotal` — the breakdown across the root URL and every page under it (see "A note on site-wide status" below)
 - `POST /api/sites` — add a single site `{ name?, url }` (checks it immediately, then scans it for pages in the background)
 - `POST /api/sites/bulk` — add many sites at once `{ entries: [{ name?, url }, ...] }` (each is scanned for pages in the background too)
 - `GET /api/sites/:id` — one site's current status
 - `DELETE /api/sites/:id` — remove a site (and its pages and check history)
+- `POST /api/sites/:id/acknowledge` — "Mark as Fixed" for the site's root URL; silences its alerts/status until the next automatic check records a newer result
+- `GET /api/sites/:id/ack` — same action as a plain GET that redirects into the site's detail page afterward (what the digest email's "Mark as Fixed" link points at, since email links can only ever be GET)
 - `GET /api/sites/:id/history?from=&to=&limit=` — raw check history for the site's own root URL, optionally date-filtered
 - `GET /api/sites/:id/analytics?from=&to=` — combined uptime %/avg response time/incidents/day-by-day summary/chart series for the site's root URL **and every page under it**, for a date range
 - `POST /api/sites/:id/check` — check one site's root URL right now (root only — see `check-all` below to include its pages)
@@ -252,25 +304,67 @@ public/style.css             Styling on top of Bootstrap
 - `POST /api/sites/:id/pages/bulk` — add many pages at once `{ entries: [{ name?, url }, ...] }`
 - `GET /api/sites/:id/pages/:pageId` — one page's current status
 - `DELETE /api/sites/:id/pages/:pageId` — remove a page (and its check history)
+- `POST /api/sites/:id/pages/:pageId/acknowledge` — "Mark as Fixed" for a single page, scoped independently of its site's root URL
+- `GET /api/sites/:id/pages/:pageId/ack` — same, as a GET-redirect for the email link
 - `GET /api/sites/:id/pages/:pageId/analytics?from=&to=` — that page's own analytics only (not combined with the rest of the site)
 - `POST /api/sites/:id/pages/:pageId/check` — check one page right now
-- `POST /api/check-all` — check every site and page right now (this is what an external scheduler pings)
-- `GET /api/settings` / `PUT /api/settings` — read or change the check schedule (`checkIntervalCron`) and `requestTimeoutMs`; a `PUT` reschedules the live scheduler immediately
+- `POST /api/check-all` — check every site and page right now, and send the digest email if anything needs reporting (this is what an external scheduler pings)
+- `GET /api/settings` / `PUT /api/settings` — read or change the check schedule (`checkIntervalCron`), `requestTimeoutMs`, `slowThresholdMs` (a successful response slower than this is classified Slow instead of Up), and `alertRecipients` (comma-separated digest recipients); a `PUT` applies all of these immediately, no restart needed
 
 All endpoints require HTTP Basic Auth if `DASHBOARD_USER`/`DASHBOARD_PASS` are set.
 
 ### A note on site-wide status
 
-A site's Up/Warning/Down badge is computed from **every target under it** — the
-root URL plus each tracked page — not from the root URL alone. Concretely: if
-every target's latest check is up, the site shows **Up**; if every target's
-latest check is down (nothing up at all), it shows **Down**; any mix — even
+A site's badge is computed from **every target under it** — the root URL plus
+each tracked page — not from the root URL alone. Concretely: if every target
+is healthy (up or slow), the site shows **Up**, or **Slow** if any of them
+were slow; if nothing at all is healthy, it shows **Down**; any mix — even
 just one page erroring while everything else, including the homepage, is
 fine — shows **Warning**. This is intentional: a site with a healthy homepage
 but a broken contact page is a real partial problem, and the old approach
 (root-URL-only) would have hidden it behind a green "Up" badge. This same rule
-drives the homepage's site cards, its filter buttons, its overview counts (Up
-now / Down or issue), and the badge at the top of the site's own detail page.
+drives the homepage's site cards, its filter buttons, its overview counts, and
+the badge at the top of the site's own detail page.
+
+### A note on Slow vs. Down
+
+These are deliberately kept separate everywhere in the app, because they mean
+different things to your team:
+
+- **Down** is an availability failure: a 500-range server error, a timeout, or
+  a connection failure (DNS, refused, reset, TLS). It blocks users completely,
+  and is always Down no matter how close to completing the request was.
+- **Slow** is a performance degradation: the request actually succeeded (a
+  2xx/3xx response), just slower than the configured slow threshold (Settings
+  → "Slow threshold (ms)", 3 seconds by default). Users can still finish what
+  they came to do, just with more friction/wait.
+
+A Slow result still counts as "available" for uptime% purposes (it did
+succeed), but is broken out separately everywhere — the status badges, the
+chart's point colors and legend, the daily log's filter, the homepage's
+overview tile, and the digest email's own "SLOW" section — so "the checkout
+page is loading slowly today" is never confused with "the checkout page is
+down".
+
+### A note on the digest email & "Mark as Fixed"
+
+Every time a check cycle finishes — the scheduler, the homepage's "Check all"
+button, or server boot (but deliberately *not* a single site/page's own "↻"
+recheck button, so those stay quiet) — Uptime Watch looks at every target's
+CURRENT status and, if anything is Down/Warning/Slow or just recovered, sends
+one report covering all of it. It's a "fixed-schedule" digest: it fires every
+cycle a problem persists, not only the first time it's noticed, so the report
+in your inbox is never stale.
+
+Clicking **Mark as Fixed** — in the email, on a site's detail page, or on a
+page's own row in the "Pages on this site" table — records an acknowledgment
+timestamp on that specific target. As long as that timestamp is newer than
+the target's latest recorded check, the dashboard and digest both treat it as
+**Up**, regardless of what the check itself actually returned. The moment the
+*next* automatic check runs, its own fresh timestamp takes over and the real
+result applies again — so a genuinely still-broken site reappears in the very
+next digest, and "Mark as Fixed" can never be used to permanently silence a
+real, ongoing problem.
 
 ### A note on automatic page discovery
 

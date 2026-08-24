@@ -21,6 +21,9 @@
     </span>
     <div class="ms-auto d-flex align-items-center gap-2">
       <span id="emailStatusBadge" class="badge rounded-pill text-bg-light border small d-none d-md-inline-flex"></span>
+      <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#mailLogModal" title="Mail log">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+      </button>
       <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#settingsModal" title="Settings">
         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -69,19 +72,25 @@
     </div>
   </div>
   <div class="row g-3 mb-4">
-    <div class="col-6 col-md-4">
+    <div class="col-6 col-md-3">
+      <div class="stat-card stat-card-sub">
+        <div class="stat-label">Slow (working, but slow)</div>
+        <div class="stat-value-sm" id="statSlow">0</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
       <div class="stat-card stat-card-sub">
         <div class="stat-label">Average response (7d)</div>
         <div class="stat-value-sm" id="statAvgResponse">—</div>
       </div>
     </div>
-    <div class="col-6 col-md-4">
+    <div class="col-6 col-md-3">
       <div class="stat-card stat-card-sub">
         <div class="stat-label">Checking every</div>
         <div class="stat-value-sm" id="statInterval">—</div>
       </div>
     </div>
-    <div class="col-6 col-md-4">
+    <div class="col-6 col-md-3">
       <div class="stat-card stat-card-sub">
         <div class="stat-label">Pages tracked</div>
         <div class="stat-value-sm" id="statTotalPages">—</div>
@@ -105,6 +114,8 @@
       <label class="btn btn-outline-secondary" for="filterAll">All</label>
       <input type="radio" class="btn-check" name="statusFilter" id="filterUp" value="up">
       <label class="btn btn-outline-secondary" for="filterUp">Up</label>
+      <input type="radio" class="btn-check" name="statusFilter" id="filterSlow" value="slow">
+      <label class="btn btn-outline-secondary" for="filterSlow">Slow</label>
       <input type="radio" class="btn-check" name="statusFilter" id="filterWarning" value="warning">
       <label class="btn btn-outline-secondary" for="filterWarning">Warning</label>
       <input type="radio" class="btn-check" name="statusFilter" id="filterDown" value="down">
@@ -203,7 +214,16 @@
           <p class="form-text">Standard 5-field cron: minute hour day month weekday.</p>
         </div>
         <label class="form-label small fw-semibold">Request timeout (ms)</label>
-        <input id="timeoutInput" type="number" min="1000" step="500" class="form-control mb-2">
+        <input id="timeoutInput" type="number" min="1000" step="500" class="form-control mb-3">
+
+        <label class="form-label small fw-semibold">Slow threshold (ms)</label>
+        <input id="slowThresholdInput" type="number" min="500" step="100" class="form-control mb-1">
+        <p class="form-text mt-0 mb-3">A successful response slower than this is flagged <strong>Slow</strong> instead of Up — a performance issue, not downtime.</p>
+
+        <label class="form-label small fw-semibold">Alert recipients</label>
+        <textarea id="alertRecipientsInput" class="form-control mb-1" rows="2" placeholder="you@example.com, teammate@example.com"></textarea>
+        <p class="form-text mt-0">Comma-separated email addresses. They'll receive the digest report whenever a site is Down, Warning, or Slow — and when one recovers.</p>
+
         <div id="settingsError" class="text-danger small mt-2 d-none"></div>
         <div id="settingsSaved" class="text-success small mt-2 d-none">Saved — the new schedule is live.</div>
       </div>
@@ -211,6 +231,38 @@
         <a href="/api/export" class="btn btn-light me-auto" download>⬇ Download backup (.xlsx)</a>
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
         <button type="button" class="btn btn-primary" id="saveSettingsBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mail log Modal -->
+<div class="modal fade" id="mailLogModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Mail log</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="form-text mt-0">Every digest email attempt — when it was generated, its subject, who it went to, and whether it actually sent.</p>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0 mail-log-table">
+            <thead>
+              <tr class="small text-muted">
+                <th>Sent</th>
+                <th>Subject</th>
+                <th>Recipients</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody id="mailLogBody"></tbody>
+          </table>
+        </div>
+        <div id="mailLogEmpty" class="text-muted small py-3 d-none">No digest emails have been sent yet.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
