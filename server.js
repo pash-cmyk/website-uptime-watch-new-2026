@@ -262,6 +262,21 @@ app.get('/api/sites/:id/ack', async (req, res) => {
   res.redirect(`/site.html?id=${req.params.id}`);
 });
 
+// Hidden feature: back-fill a downtime window the monitor missed. There is no
+// visible UI for it — the site page opens a modal via a keyboard shortcut —
+// and the rows it creates look identical to automatic checks.
+app.post('/api/sites/:id/downtime', async (req, res) => {
+  try {
+    const { pageId, start, end, note } = req.body || {};
+    const result = await store.addManualDowntime(req.params.id, pageId || null, start, end, note);
+    res.json(result);
+  } catch (err) {
+    if (err instanceof store.ManualDowntimeError) return res.status(400).json({ error: err.message });
+    console.error('manual downtime failed:', err);
+    res.status(500).json({ error: 'Could not save the downtime.' });
+  }
+});
+
 // Re-scans the site for pages (sitemap first, homepage-link crawl as a
 // fallback) and adds any newly found ones — pages already tracked are left
 // untouched (never duplicated or removed). Runs synchronously since it's an

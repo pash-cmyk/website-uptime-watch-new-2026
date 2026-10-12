@@ -540,6 +540,92 @@ document.getElementById('markFixedBtn').addEventListener('click', async () => {
   }
 });
 
+// ---------- Hidden "add downtime" shortcut ----------
+//
+// Alt+Shift+D opens a small modal for back-filling an outage the monitor
+// missed. There's intentionally no button or hint anywhere on the page, and
+// the rows it creates look just like automatic checks.
+
+function toLocalInputValue(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+async function openManualDowntime() {
+  const sel = document.getElementById('mdTarget');
+  sel.innerHTML = '';
+  if (pageId) {
+    // Single-page view: the entry can only apply to this page.
+    const opt = document.createElement('option');
+    opt.value = pageId;
+    opt.textContent = document.getElementById('siteTitle').textContent || 'This page';
+    sel.appendChild(opt);
+    sel.disabled = true;
+  } else {
+    sel.disabled = false;
+    const root = document.createElement('option');
+    root.value = '';
+    root.textContent = 'Whole site (homepage)';
+    sel.appendChild(root);
+    try { if (!allPages.length) allPages = await fetchJSON(`/api/sites/${siteId}/pages`); } catch (_) { /* pages list optional */ }
+    allPages.forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name || p.url;
+      sel.appendChild(opt);
+    });
+  }
+  const now = new Date();
+  document.getElementById('mdEnd').value = toLocalInputValue(now);
+  document.getElementById('mdStart').value = toLocalInputValue(new Date(now.getTime() - 60 * 60000));
+  document.getElementById('mdNote').value = '';
+  document.getElementById('mdError').classList.add('d-none');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('manualDowntimeModal')).show();
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!(e.altKey && e.shiftKey && e.code === 'KeyD')) return;
+  const tag = (e.target && e.target.tagName) || '';
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
+  e.preventDefault();
+  openManualDowntime();
+});
+
+document.getElementById('mdSubmit').addEventListener('click', async () => {
+  const btn = document.getElementById('mdSubmit');
+  const errEl = document.getElementById('mdError');
+  errEl.classList.add('d-none');
+  const startVal = document.getElementById('mdStart').value;
+  const endVal = document.getElementById('mdEnd').value;
+  if (!startVal || !endVal) {
+    errEl.textContent = 'Pick both a start and an end time.';
+    errEl.classList.remove('d-none');
+    return;
+  }
+  btn.disabled = true;
+  try {
+    await fetchJSON(`/api/sites/${siteId}/downtime`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pageId: document.getElementById('mdTarget').value || null,
+        start: new Date(startVal).toISOString(),
+        end: new Date(endVal).toISOString(),
+        note: document.getElementById('mdNote').value,
+      }),
+    });
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('manualDowntimeModal')).hide();
+    const tasks = [loadSiteHeader(), loadAnalytics()];
+    if (!pageId) tasks.push(loadPages());
+    await Promise.all(tasks);
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ---------- Init ----------
 
 loadSiteHeader().catch((e) => {

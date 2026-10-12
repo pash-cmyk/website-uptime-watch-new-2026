@@ -177,6 +177,46 @@
   </footer>
 </div>
 
+<!-- Hidden: add a missed downtime window. Opened only by the keyboard
+     shortcut (Alt+Shift+D) — there is deliberately no visible control. -->
+<div class="modal fade" id="manualDowntimeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add downtime</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="manualDowntimeForm" autocomplete="off">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="mdTarget">Applies to</label>
+            <select id="mdTarget" class="form-select"></select>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold" for="mdStart">Start</label>
+              <input id="mdStart" type="datetime-local" class="form-control" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold" for="mdEnd">End</label>
+              <input id="mdEnd" type="datetime-local" class="form-control" required>
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label small fw-semibold" for="mdNote">Note <span class="text-muted fw-normal">(optional)</span></label>
+            <input id="mdNote" type="text" class="form-control" maxlength="300">
+          </div>
+          <div id="mdError" class="text-danger small mt-2 d-none"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="mdSubmit">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Add Page Modal -->
 <div class="modal fade" id="addPageModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
